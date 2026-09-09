@@ -42,7 +42,7 @@ Brain tumors need to be diagnosed quickly and correctly, and manual review of MR
 \section{Introduction}
 A brain tumor is an abnormal growth of cells inside the skull, and depending on type and location, it can be life-threatening. Tumors are classified as primary, meaning they originate in the brain, or secondary, meaning they spread from cancer elsewhere in the body. Among primary tumors, gliomas and meningiomas are the most common, with gliomas generally being more aggressive. Because symptoms depend heavily on tumor size and location, early and accurate detection matters a great deal. Diagnosis has traditionally relied on radiologists reading MRI scans by hand, a process that takes time and is subject to disagreement between readers. Given how much a delayed or missed diagnosis can affect a patient's outcome, there is real value in tools that can support this process.
 
-Deep learning, and CNNs in particular, has changed how image analysis is done by learning hierarchical features directly from pixels instead of relying on hand-crafted rules. This has made it possible to segment and classify medical images without manually engineering features for every task. When labeled data is limited, which is common in medical imaging, transfer learning helps close the gap: a CNN pretrained on a large natural-image dataset like ImageNet is fine-tuned on the smaller medical dataset instead of being trained from nothing. \citet{tajbakhsh2016convolutional} showed that fine-tuned pretrained models frequently outperform models trained from scratch on medical imaging tasks. CNNs have since been applied widely to both segmentation and classification of brain MRI. \citet{havaei2017brain}, for example, combined local and global image context in a single CNN to achieve strong glioblastoma segmentation results. On the classification side, several recent studies report high accuracy with transfer learning: \citet{disci2023fine} fine-tuned architectures such as ResNet50 and Xception and reported over 98\% accuracy across four tumor categories, while \citet{vimala2023efficientnet} used EfficientNet variants to reach roughly 99\% test accuracy distinguishing glioma, meningioma, and pituitary tumors.
+Deep learning, and CNNs in particular, has changed how image analysis is done by learning hierarchical features directly from pixels instead of relying on hand-crafted rules. This has made it possible to segment and classify medical images without manually engineering features for every task. When labeled data is limited, which is common in medical imaging, transfer learning helps close the gap: a CNN pretrained on a large natural-image dataset like ImageNet is fine-tuned on the smaller medical dataset instead of being trained from nothing. \citet{tajbakhsh2016convolutional} showed that fine-tuned pretrained models frequently outperform models trained from scratch on medical imaging tasks. CNNs have since been applied widely to both segmentation and classification of brain MRI. \citet{havaei2017brain}, for example, combined local and global image context in a single CNN to achieve strong glioblastoma segmentation results. On the classification side, several recent studies report high accuracy with transfer learning: \citet{disci2023fine} fine-tuned architectures such as Xception, MobileNetV2, InceptionV3, ResNet50, VGG16, and DenseNet121 on the same four-class dataset used here and reported strong classification accuracy, while \citet{vimala2023efficientnet} used a hybrid deep learning approach to reach high test accuracy distinguishing glioma, meningioma, and pituitary tumors.
 
 The contribution of this paper is not a new architecture. It is a clean, fully documented baseline that anyone can rerun and get the same numbers from. Specifically:
 
@@ -59,10 +59,10 @@ CNNs have performed well across a range of medical imaging tasks, including tumo
 
 Transfer learning is a natural fit for classification problems with limited labeled data. \citet{tajbakhsh2016convolutional} studied medical image analysis tasks spanning radiology and cardiology and found that CNNs pretrained on ImageNet and then fine-tuned generally outperform networks trained from scratch, and that fine-tuned networks are also more robust when training data is scarce. MRI scans look nothing like ImageNet's natural photographs, but this line of work is exactly why we still start from an ImageNet-pretrained ResNet-18: fine-tuning lets the network adapt its low-level filters to MRI texture while keeping the general-purpose pattern detectors learned from a much larger dataset.
 
-Several studies have applied transfer learning specifically to brain MRI. \citet{disci2023fine} fine-tuned Xception, ResNet50, and DenseNet121 on a public brain MRI dataset and reported weighted accuracies up to 98.7\% across glioma, meningioma, pituitary, and healthy classes. \citet{vimala2023efficientnet} optimized EfficientNet-B0 through EfficientNet-B4 on a comparable contrast-enhanced MRI dataset and reported approximately 99\% accuracy across three tumor types. Other work looks at combining models rather than picking one: \citet{chen2024fusion} fused features from ResNet101, DenseNet121, and EfficientNet to improve robustness, reporting over 97\% accuracy on standard benchmarks. Taken together, these results suggest that pretrained CNNs, given careful fine-tuning and reasonable data augmentation, can classify brain tumors with high accuracy. What is often missing from these reports is the detail needed to reproduce them exactly, which is the gap this paper tries to fill.
+Several studies have applied transfer learning specifically to brain MRI. \citet{disci2023fine} benchmarked six pre-trained architectures, including Xception, ResNet50, and DenseNet121, on the same public four-class brain MRI dataset used in this paper and reported strong classification accuracy through transfer learning and fine-tuning. \citet{vimala2023efficientnet} applied a hybrid deep learning approach combining EfficientNet-based transfer learning with additional classifiers on the Figshare brain tumor dataset and reported high accuracy across glioma, meningioma, and pituitary tumor classes. Other work looks at combining models rather than picking one: \citet{chen2024fusion} fused deep features from multiple pre-trained CNNs to improve the robustness of multi-type brain tumor classification, reporting accuracy above 95\% on their evaluation set. Taken together, these results suggest that pretrained CNNs, given careful fine-tuning and reasonable data augmentation, can classify brain tumors with high accuracy. What is often missing from these reports is the detail needed to reproduce them exactly, which is the gap this paper tries to fill.
 
 \section{Dataset}
-We use the brain MRI dataset released by \citet{ghaffar2020dataset} on Mendeley Data, which contains 7,023 T1-weighted, contrast-enhanced MRI images spanning four classes: glioma, meningioma, pituitary tumor, and no tumor. The images are JPEG-formatted axial and coronal slices, gathered from multiple sources and pre-split by the dataset authors into training and testing folders. That split matters for evaluation: our pipeline treats the training folder as the only source of trainable data and keeps the testing folder completely untouched until final evaluation, so no test image influences either the weights or the choice of checkpoint.
+We use the brain MRI dataset released by \citet{ghaffar2020dataset} on Mendeley Data in 2024, which contains 7,023 T1-weighted, contrast-enhanced MRI images spanning four classes: glioma, meningioma, pituitary tumor, and no tumor. The images are JPEG-formatted axial and coronal slices, gathered from multiple sources and pre-split by the dataset authors into training and testing folders. That split matters for evaluation: our pipeline treats the training folder as the only source of trainable data and keeps the testing folder completely untouched until final evaluation, so no test image influences either the weights or the choice of checkpoint.
 
 Table~\ref{tab:dataset} gives the exact composition of both splits as counted directly from disk. The classes are reasonably balanced, with \texttt{notumor} the largest at 1,595 training images and \texttt{glioma} the smallest at 1,321. Figure~\ref{fig:samples} shows example scans from each class, and Figure~\ref{fig:class_dist} plots the same counts visually. Both figures are generated by \texttt{visualizer.py} from whatever copy of the data is on disk rather than hardcoded, so they always describe the data actually being trained on.
 
@@ -317,9 +317,9 @@ Table~\ref{tab:comparison} places our result next to recent transfer learning wo
 \toprule
 Work & Model & Acc. \\
 \midrule
-\citet{chen2024fusion} & Fusion (3 CNNs) & $>$97\% \\
-\citet{disci2023fine} & Xception, ResNet50 & 98.7\% \\
-\citet{vimala2023efficientnet} & EfficientNet B0-B4 & $\approx$99\% \\
+\citet{chen2024fusion} & Deep feature fusion (multi-CNN) & $>$95\% \\
+\citet{disci2023fine} & Xception, ResNet50, DenseNet121 & high (see source) \\
+\citet{vimala2023efficientnet} & Hybrid EfficientNet ensemble & high (see source) \\
 This work & ResNet-18 & 99.16\% \\
 \bottomrule
 \end{tabular}
@@ -383,24 +383,24 @@ Selvaraju, R. R., Cogswell, M., Das, A., Vedantam, R., Parikh, D., \& Batra, D. 
 Grad-CAM: Visual explanations from deep networks via gradient-based localization.
 \textit{Proceedings of the IEEE International Conference on Computer Vision (ICCV)}, 618--626.
 
-\bibitem[Disci et al., 2023]{disci2023fine}
-Disci, M. B., Bayramoglu, N., \& Cinar, A. (2023).
-Fine-tuning pretrained models for brain tumor classification.
-\textit{Biomedical Signal Processing and Control}, 82, 104585.
+\bibitem[Disci et al., 2025]{disci2023fine}
+Disci, R., Gurcan, F., \& Soylu, A. (2025).
+Advanced brain tumor classification in MR images using transfer learning and pre-trained deep CNN models.
+\textit{Cancers}, 17(1), 121.
 
-\bibitem[Vimala et al., 2023]{vimala2023efficientnet}
-Vimala, V., Sathya, R., \& Suganya, R. (2023).
-Brain tumor classification using EfficientNet architecture.
-\textit{Computers in Biology and Medicine}, 160, 106010.
+\bibitem[Babu Vimala et al., 2023]{vimala2023efficientnet}
+Babu Vimala, B., Srinivasan, S., Mathivanan, S. K., Mahalakshmi, J. P., \& Dalu, G. T. (2023).
+Detection and classification of brain tumor using hybrid deep learning models.
+\textit{Scientific Reports}, 13, 23029.
 
 \bibitem[Chen et al., 2024]{chen2024fusion}
-Chen, L., Zhao, W., \& Wang, J. (2024).
-Fusion of pretrained CNN features for brain tumor classification.
-\textit{Expert Systems with Applications}, 233, 120096.
+Chen, W., Tan, X., Zhang, J., Du, G., Fu, Q., \& Jiang, H. (2024).
+A robust approach for multi-type classification of brain tumor using deep feature fusion.
+\textit{Frontiers in Neuroscience}, 18, 1288274.
 
-\bibitem[Ghaffar et al., 2020]{ghaffar2020dataset}
-Ghaffar, A. \textit{et al.} (2020).
-Brain MRI Images for Brain Tumor Detection.
+\bibitem[Ghaffar, 2024]{ghaffar2020dataset}
+Ghaffar, A. (2024).
+Brain Tumor Data.
 \textit{Mendeley Data}, V1. \url{https://data.mendeley.com/datasets/w4sw3s9f59/1}
 
 \bibitem[He et al., 2016]{he2016deep}
