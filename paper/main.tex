@@ -36,13 +36,13 @@
 \maketitle
 
 \begin{abstract}
-Brain tumors need to be diagnosed quickly and correctly, and manual review of MRI scans by radiologists, while accurate, is slow and can vary from one reader to another. Convolutional neural networks (CNNs) offer a way to automate part of this process and support, rather than replace, clinical judgment. This paper presents a complete and reproducible transfer learning pipeline that sorts brain MRI scans into four categories: glioma, meningioma, pituitary tumor, and no tumor. We fine-tune a ResNet-18 pretrained on ImageNet, replacing its final layer with a four-way classifier, and train on 5,712 images with light augmentation, early stopping, and learning rate scheduling. On a fully held-out test set of 1,311 images the model reaches 99.16\% accuracy, a macro-averaged F1 score of 0.991, and a macro-averaged one-vs-rest AUC above 0.999, misclassifying 11 scans in total. We report the complete confusion matrix and per-class metrics rather than a single headline number, analyze every error the model makes, and note that several errors are made with high confidence, which is a calibration problem worth taking seriously in a clinical context. Grad-CAM heatmaps confirm the network attends to brain tissue rather than scan borders or acquisition artifacts. All code, figures, and hyperparameters are released so the results can be reproduced end to end on a single consumer GPU.
+Brain tumors need to be diagnosed quickly and correctly, and manual review of MRI scans by radiologists, while accurate, is slow and can vary from one reader to another. Convolutional neural networks (CNNs) offer a way to automate part of this process and support, rather than replace, clinical judgment. This paper presents a complete and reproducible transfer learning pipeline that sorts brain MRI scans into four categories: glioma, meningioma, pituitary tumor, and no tumor. We fine-tune a ResNet-18 pretrained on ImageNet, replacing its final layer with a four-way classifier, and train on 5,712 images with light augmentation, early stopping, and learning rate scheduling. On a fully held-out test set of 1,311 images the model reaches 99.16\% accuracy, a macro-averaged F1 score of 0.991, and a macro-averaged one-vs-rest AUC above 0.999, misclassifying 11 scans in total. Repeating training across five random seeds gives a mean test accuracy of 99.16\% with a standard deviation of 0.14 points, and an ablation shows that full fine-tuning, rather than freezing the pretrained backbone, accounts for a 15.6-point accuracy gap by itself, dwarfing the roughly 0.9-point effect of data augmentation. We report the complete confusion matrix and per-class metrics rather than a single headline number, analyze every error the model makes, and apply temperature scaling to check whether the model's confidence can be trusted: aggregate calibration was already good, but temperature scaling still cut the number of high-confidence (>0.90) errors from four to one. Grad-CAM heatmaps confirm the network attends to brain tissue rather than scan borders or acquisition artifacts. All code, figures, and hyperparameters are released so the results can be reproduced end to end on a single consumer GPU.
 \end{abstract}
 
 \section{Introduction}
 A brain tumor is an abnormal growth of cells inside the skull, and depending on type and location, it can be life-threatening. Tumors are classified as primary, meaning they originate in the brain, or secondary, meaning they spread from cancer elsewhere in the body. Among primary tumors, gliomas and meningiomas are the most common, with gliomas generally being more aggressive. Because symptoms depend heavily on tumor size and location, early and accurate detection matters a great deal. Diagnosis has traditionally relied on radiologists reading MRI scans by hand, a process that takes time and is subject to disagreement between readers. Given how much a delayed or missed diagnosis can affect a patient's outcome, there is real value in tools that can support this process.
 
-Deep learning, and CNNs in particular, has changed how image analysis is done by learning hierarchical features directly from pixels instead of relying on hand-crafted rules. This has made it possible to segment and classify medical images without manually engineering features for every task. When labeled data is limited, which is common in medical imaging, transfer learning helps close the gap: a CNN pretrained on a large natural-image dataset like ImageNet is fine-tuned on the smaller medical dataset instead of being trained from nothing. \citet{tajbakhsh2016convolutional} showed that fine-tuned pretrained models frequently outperform models trained from scratch on medical imaging tasks. CNNs have since been applied widely to both segmentation and classification of brain MRI. \citet{havaei2017brain}, for example, combined local and global image context in a single CNN to achieve strong glioblastoma segmentation results. On the classification side, several recent studies report high accuracy with transfer learning: \citet{disci2023fine} fine-tuned architectures such as ResNet50 and Xception and reported over 98\% accuracy across four tumor categories, while \citet{vimala2023efficientnet} used EfficientNet variants to reach roughly 99\% test accuracy distinguishing glioma, meningioma, and pituitary tumors.
+Deep learning, and CNNs in particular, has changed how image analysis is done by learning hierarchical features directly from pixels instead of relying on hand-crafted rules. This has made it possible to segment and classify medical images without manually engineering features for every task. When labeled data is limited, which is common in medical imaging, transfer learning helps close the gap: a CNN pretrained on a large natural-image dataset like ImageNet is fine-tuned on the smaller medical dataset instead of being trained from nothing. \citet{tajbakhsh2016convolutional} showed that fine-tuned pretrained models frequently outperform models trained from scratch on medical imaging tasks. CNNs have since been applied widely to both segmentation and classification of brain MRI. \citet{havaei2017brain}, for example, combined local and global image context in a single CNN to achieve strong glioblastoma segmentation results. On the classification side, several recent studies report high accuracy with transfer learning: \citet{disci2023fine} fine-tuned architectures such as Xception, MobileNetV2, InceptionV3, ResNet50, VGG16, and DenseNet121 on the same four-class dataset used here and reported strong classification accuracy, while \citet{vimala2023efficientnet} used a hybrid deep learning approach to reach high test accuracy distinguishing glioma, meningioma, and pituitary tumors.
 
 The contribution of this paper is not a new architecture. It is a clean, fully documented baseline that anyone can rerun and get the same numbers from. Specifically:
 
@@ -50,8 +50,10 @@ The contribution of this paper is not a new architecture. It is a clean, fully d
 \itemsep0.2em
 \item We describe the entire pipeline end to end, from folder layout and preprocessing through training, evaluation, and interpretability, with every hyperparameter stated (Sections~\ref{sec:method} and~\ref{sec:setup}).
 \item We report complete results rather than a headline accuracy: per-class precision, recall, and F1, the raw confusion matrix, per-class ROC-AUC, and an analysis of all 11 test-set errors (Section~\ref{sec:results}).
+\item We measure run-to-run noise directly with a five-seed sweep, and isolate the effect of augmentation and fine-tuning strategy with a small ablation, rather than reporting a single unqualified number (Section~\ref{sec:variance}).
+\item We test whether the model's confidence can be trusted using temperature scaling, and report a concrete, honest result rather than assuming calibration is fine (Section~\ref{sec:calibration}).
 \item We include Grad-CAM interpretability and use it to check that the model attends to anatomically plausible regions (Section~\ref{sec:interpretability}).
-\item We are explicit about what this baseline does not establish, including calibration, generalization across institutions, and run-to-run variance (Section~\ref{sec:limitations}).
+\item We are explicit about what this baseline still does not establish, including generalization across institutions and finer-grained uncertainty estimation (Section~\ref{sec:limitations}).
 \end{itemize}
 
 \section{Related Work}
@@ -59,10 +61,14 @@ CNNs have performed well across a range of medical imaging tasks, including tumo
 
 Transfer learning is a natural fit for classification problems with limited labeled data. \citet{tajbakhsh2016convolutional} studied medical image analysis tasks spanning radiology and cardiology and found that CNNs pretrained on ImageNet and then fine-tuned generally outperform networks trained from scratch, and that fine-tuned networks are also more robust when training data is scarce. MRI scans look nothing like ImageNet's natural photographs, but this line of work is exactly why we still start from an ImageNet-pretrained ResNet-18: fine-tuning lets the network adapt its low-level filters to MRI texture while keeping the general-purpose pattern detectors learned from a much larger dataset.
 
-Several studies have applied transfer learning specifically to brain MRI. \citet{disci2023fine} fine-tuned Xception, ResNet50, and DenseNet121 on a public brain MRI dataset and reported weighted accuracies up to 98.7\% across glioma, meningioma, pituitary, and healthy classes. \citet{vimala2023efficientnet} optimized EfficientNet-B0 through EfficientNet-B4 on a comparable contrast-enhanced MRI dataset and reported approximately 99\% accuracy across three tumor types. Other work looks at combining models rather than picking one: \citet{chen2024fusion} fused features from ResNet101, DenseNet121, and EfficientNet to improve robustness, reporting over 97\% accuracy on standard benchmarks. Taken together, these results suggest that pretrained CNNs, given careful fine-tuning and reasonable data augmentation, can classify brain tumors with high accuracy. What is often missing from these reports is the detail needed to reproduce them exactly, which is the gap this paper tries to fill.
+A large share of this literature builds on the T1-weighted contrast-enhanced brain tumor dataset released by \citet{cheng2015enhanced} on Figshare, which covers the same three tumor types (glioma, meningioma, pituitary) used here and has become a de facto benchmark; several of the public four-class collections used in more recent work, including datasets used by studies discussed below, trace part of their images back to it. \citet{swati2019brain} were among the first to apply transfer learning to this dataset directly, using a block-wise fine-tuning strategy on a pretrained VGG19 rather than fine-tuning the whole network at once, which let them study how much of a pretrained CNN actually needs to change for a new imaging domain. \citet{deepak2019brain} took a feature-extraction approach instead, using a pretrained GoogLeNet purely to produce features and training a separate classifier on top, and reported a mean classification accuracy of 98\% across glioma, meningioma, and pituitary tumors. \citet{khan2020brain} trained a CNN classifier on a smaller, independently annotated brain MRI collection, which is a useful reminder that results on the large aggregated datasets used elsewhere in this section do not automatically transfer to differently sourced data.
+
+Several more recent studies broaden the comparison to more backbones or add a second technique on top of transfer learning. \citet{disci2023fine} benchmarked six pretrained architectures, including Xception, ResNet50, and DenseNet121, on the same public four-class brain MRI dataset used in this paper and reported strong classification accuracy through transfer learning and fine-tuning. \citet{vimala2023efficientnet} applied a hybrid deep learning approach combining EfficientNet-based transfer learning with additional classifiers on the Figshare brain tumor dataset and reported high accuracy across glioma, meningioma, and pituitary tumor classes. \citet{srinivas2022deep} compared VGG-16, ResNet-50, and Inception-v3 directly against each other under the same transfer learning setup and found meaningful accuracy differences between backbones on the same data, which is a useful caution against assuming any one pretrained network is the right default choice. \citet{krishnapriya2023pretrained} ran a similar head-to-head comparison across a wider set of pretrained models. \citet{anaya2023optimizing} went further and compared standard transfer learning against data augmentation and a cross-transformer architecture on the same classification and detection tasks, which starts to probe whether the gains in this literature come from the backbone, the augmentation, or the training recipe. \citet{dutta2022multi} is a smaller-scale study in the same vein, applying transfer learning-based deep networks to the multi-class version of the problem. Other work looks at combining models rather than picking one: \citet{chen2024fusion} fused deep features from multiple pretrained CNNs to improve the robustness of multi-type brain tumor classification, reporting accuracy above 95\% on their evaluation set; \citet{sankar2024efficient} built an ensemble of deep learning models specifically for tumor \emph{grade} classification, a related but distinct problem from the type classification addressed here; \citet{gasmi2024enhanced} combined several deep models with a weight-selection technique to merge their predictions; and \citet{alkharaan2026brain} paired an EfficientNet classifier with a U-Net++ segmentation branch so that classification and tumor localization are produced together rather than as separate steps.
+
+Taken together, these results suggest that pretrained CNNs, given careful fine-tuning and reasonable data augmentation, can classify brain tumors with high accuracy across a wide range of backbones and training recipes. What is often missing from these reports is the detail needed to reproduce them exactly: full hyperparameters, a fixed held-out test set that is never touched during model selection, a complete confusion matrix rather than a single accuracy figure, and code that is actually released. That gap is what this paper tries to fill.
 
 \section{Dataset}
-We use the brain MRI dataset released by \citet{ghaffar2020dataset} on Mendeley Data, which contains 7,023 T1-weighted, contrast-enhanced MRI images spanning four classes: glioma, meningioma, pituitary tumor, and no tumor. The images are JPEG-formatted axial and coronal slices, gathered from multiple sources and pre-split by the dataset authors into training and testing folders. That split matters for evaluation: our pipeline treats the training folder as the only source of trainable data and keeps the testing folder completely untouched until final evaluation, so no test image influences either the weights or the choice of checkpoint.
+We use the brain MRI dataset released by \citet{ghaffar2020dataset} on Mendeley Data in 2024, which contains 7,023 T1-weighted, contrast-enhanced MRI images spanning four classes: glioma, meningioma, pituitary tumor, and no tumor. The images are JPEG-formatted axial and coronal slices, gathered from multiple sources and pre-split by the dataset authors into training and testing folders. That split matters for evaluation: our pipeline treats the training folder as the only source of trainable data and keeps the testing folder completely untouched until final evaluation, so no test image influences either the weights or the choice of checkpoint.
 
 Table~\ref{tab:dataset} gives the exact composition of both splits as counted directly from disk. The classes are reasonably balanced, with \texttt{notumor} the largest at 1,595 training images and \texttt{glioma} the smallest at 1,321. Figure~\ref{fig:samples} shows example scans from each class, and Figure~\ref{fig:class_dist} plots the same counts visually. Both figures are generated by \texttt{visualizer.py} from whatever copy of the data is on disk rather than hardcoded, so they always describe the data actually being trained on.
 
@@ -196,7 +202,7 @@ Training uses cross-entropy loss and the Adam optimizer. The official training f
 
 \section{Experimental Setup}
 \label{sec:setup}
-Table~\ref{tab:hyper} lists every hyperparameter used to produce the results in this paper. Training ran on a single NVIDIA RTX 4070 with PyTorch 2.14 and CUDA 12.6, and completed in a few minutes; the same script runs unchanged on CPU, just considerably slower. Evaluation metrics come from \texttt{scikit-learn}, and every figure in Section~\ref{sec:results} is produced directly by the released scripts.
+Table~\ref{tab:hyper} lists every hyperparameter used to produce the results in this paper. Training ran on a single NVIDIA RTX 4070 with PyTorch 2.14 and CUDA 12.6, and each run completed in minutes; the same script runs unchanged on CPU, just considerably slower. Evaluation metrics come from \texttt{scikit-learn}, and every figure in Section~\ref{sec:results} is produced directly by the released scripts. The main result (Table~\ref{tab:results} onward) uses seed 42; Section~\ref{sec:variance} additionally reports five-seed and ablation runs produced by \texttt{train.py} with different \texttt{--seed}, \texttt{--augment}, and \texttt{--freeze\_backbone} settings, and Section~\ref{sec:calibration} uses \texttt{calibrate.py} to fit and evaluate temperature scaling. All of it, including the exact per-run metrics behind Tables~\ref{tab:seedvar} and~\ref{tab:ablation}, is reproducible with the scripts in the repository.
 
 \begin{table}[H]
 \centering
@@ -306,6 +312,78 @@ Figure~\ref{fig:roc_curves} shows one-vs-rest ROC curves. All four classes have 
     \label{fig:roc_curves}
 \end{figure}
 
+\subsection{Seed Variance and Ablations}
+\label{sec:variance}
+Section~\ref{sec:limitations} of an earlier draft of this work flagged that a single run cannot separate a real effect from noise, and that no ablation had been run to check which parts of the recipe actually mattered. We closed both gaps by rerunning training five times with different random seeds (42, 0, 1, 2, 3) under the main configuration (augmentation on, full fine-tuning), and by rerunning it four more times at a fixed seed with augmentation and fine-tuning strategy toggled on and off independently. Every run used the same hyperparameters as Table~\ref{tab:hyper} and was evaluated once on the same untouched test set.
+
+Table~\ref{tab:seedvar} reports the seed sweep. Test accuracy ranges from 98.93\% to 99.31\% across the five seeds, a spread of 0.38 points, giving a mean of 99.16\% with a sample standard deviation of 0.14 points. The number of test errors ranges from 9 to 14 out of 1,311. This confirms what the gap between peak and selected validation accuracy already hinted at: at this accuracy level, a difference of a few tenths of a point between two methods, or between this model and a competing report in Table~\ref{tab:comparison}, is within the noise of a single run and should not be read as a real difference without a comparable seed sweep on both sides.
+
+\begin{table}[H]
+\centering
+\caption{Test accuracy across 5 random seeds, same configuration (ResNet-18, augmentation on, full fine-tuning) as the main result.}
+\label{tab:seedvar}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Seed & Test Acc. & Macro F1 & Errors \\
+\midrule
+42      & 99.16\% & 0.9913 & 11 \\
+0       & 99.31\% & 0.9926 & 9 \\
+1       & 99.24\% & 0.9919 & 10 \\
+2       & 98.93\% & 0.9891 & 14 \\
+3       & 99.16\% & 0.9915 & 11 \\
+\midrule
+Mean & 99.16\% & 0.9913 & 11.0 \\
+SD   & 0.14 pt & 0.0013 & 1.9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:ablation} reports the ablation, all four runs at seed 42. The effect of freezing the backbone is far larger than anything else studied in this paper: test accuracy falls from 99.16\% to 83.52\% when only the new classification head is trained and the pretrained convolutional layers are left untouched, a drop of roughly 15.6 points. This is a single seed per cell, not an average, so the exact numbers should be read as indicative rather than tightly bounded, but a gap this large is not going to be noise. It is a direct, practical confirmation of the claim in Section~\ref{sec:architecture}, based on \citet{tajbakhsh2016convolutional}, that full fine-tuning matters for this kind of transfer; freezing the backbone and only training a linear head is not a reasonable shortcut here.
+
+Augmentation has a real but much smaller effect, and its direction depends on whether the backbone is being fine-tuned. With full fine-tuning, turning augmentation on improves test accuracy from 98.25\% to 99.16\%, a gain of about 0.9 points, consistent with augmentation acting as a mild regularizer that reduces the overfitting visible in Figure~\ref{fig:training_curves}. With the backbone frozen, augmentation instead makes things slightly worse (84.74\% without augmentation versus 83.52\% with it). A plausible reading is that a frozen backbone's features were learned on unaugmented natural images, and a linear head sitting on top of those frozen features has limited capacity to absorb the extra input variability that augmentation introduces, so augmentation adds noise without adding anything the fixed features can exploit. We would not treat one seed as confirmation of this explanation, but it is consistent with the much larger gap between frozen and fine-tuned models in the first place.
+
+\begin{table}[H]
+\centering
+\caption{Ablation over augmentation and fine-tuning strategy, seed 42. Each cell is a single run.}
+\label{tab:ablation}
+\begin{tabular}{llrrr}
+\toprule
+Augment & Fine-tuning & Test Acc. & Macro F1 & Errors \\
+\midrule
+On  & Full   & 99.16\% & 0.9913 & 11 \\
+Off & Full   & 98.25\% & 0.9814 & 23 \\
+On  & Frozen & 83.52\% & 0.8262 & 216 \\
+Off & Frozen & 84.74\% & 0.8380 & 200 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Calibration}
+\label{sec:calibration}
+Section~\ref{sec:results} noted that several errors are made with high softmax confidence, which is a calibration problem rather than an accuracy problem: a well-calibrated model's confidence should track its actual probability of being correct, and a model that is confidently wrong is dangerous to route into a workflow that trusts confidence as a proxy for correctness. We fit a single temperature parameter $T$ \citep{guo2017calibration} on the validation set by minimizing negative log-likelihood, then divide test-set logits by $T$ before softmax. Temperature scaling cannot change which class is predicted, since dividing all logits by a positive constant does not change their ranking, so it can only reshape confidence, not accuracy or the identity of the 11 test errors.
+
+The fitted temperature was $T = 1.38$, meaning the network's raw logits were somewhat overconfident and needed softening. Table~\ref{tab:calibration} reports expected calibration error (ECE) and negative log-likelihood (NLL) before and after scaling, on both the validation set the temperature was fit on and the untouched test set.
+
+\begin{table}[H]
+\centering
+\caption{Calibration before and after fitting temperature scaling on the validation set. ECE and NLL are lower when better calibrated.}
+\label{tab:calibration}
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{Validation} & \multicolumn{2}{c}{Test} \\
+Metric & Before & After & Before & After \\
+\midrule
+ECE & 0.0058 & 0.0034 & 0.0043 & 0.0048 \\
+NLL & 0.0376 & 0.0339 & 0.0209 & 0.0209 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The result is more nuanced than a clean before/after improvement, and we think the nuance is worth keeping rather than smoothing over. On the validation set, where $T$ was fit, both ECE and NLL improve, exactly as expected. On the test set, ECE is essentially unchanged (0.0043 to 0.0048, a small increase within noise at only 1,311 examples) and NLL does not move. Test-set calibration was already very good before any correction: an ECE around 0.004 to 0.005 is low, so there was little global miscalibration for temperature scaling to fix, and a temperature fit on 1,143 validation examples does not perfectly transfer to the test set.
+
+What does change, and what we think is the actually useful part of this analysis, is the confidence assigned to the errors that matter most. Of the four test errors originally made with confidence above 0.90 (Section~\ref{sec:results}), only one remains above 0.90 after temperature scaling; the glioma misclassified as meningioma at 0.964 confidence drops to 0.911, and three other high-confidence errors drop below the 0.90 threshold entirely. In other words, temperature scaling did not move the aggregate calibration metric much on this test set, but it specifically pulled down the confidence of the errors that a confidence-based review threshold would otherwise have let through uninspected. That is a small effect on a single held-out set of 1,311 images, and we would not generalize it beyond this dataset, but it is a concrete, cheap intervention that a deployment could apply for free before deciding what confidence threshold routes a case to a radiologist.
+
 \subsection{Comparison with Prior Work}
 Table~\ref{tab:comparison} places our result next to recent transfer learning work on brain tumor MRI. We want to be careful about how much weight this carries. These studies use different dataset versions, different splits, and in one case only three classes, so the numbers are indicative of the general performance range rather than a controlled head-to-head comparison. The honest reading is that a plain fine-tuned ResNet-18, which is smaller and cheaper than most of the architectures listed, lands in the same range as heavier models and ensembles. That is a useful result mostly because it sets a floor: if a more complex method cannot beat this baseline by a clear margin, the added complexity is hard to justify.
 
@@ -313,13 +391,15 @@ Table~\ref{tab:comparison} places our result next to recent transfer learning wo
 \centering
 \caption{Reported accuracy in recent related work. Datasets and splits differ, so these are not directly comparable.}
 \label{tab:comparison}
-\begin{tabular}{llr}
+\small
+\begin{tabular}{p{0.33\linewidth}p{0.42\linewidth}r}
 \toprule
 Work & Model & Acc. \\
 \midrule
-\citet{chen2024fusion} & Fusion (3 CNNs) & $>$97\% \\
-\citet{disci2023fine} & Xception, ResNet50 & 98.7\% \\
-\citet{vimala2023efficientnet} & EfficientNet B0-B4 & $\approx$99\% \\
+\citet{deepak2019brain} & GoogLeNet features (3-class) & 98\% \\
+\citet{chen2024fusion} & Multi-CNN feature fusion & $>$95\% \\
+\citet{disci2023fine} & 6 pretrained CNNs & high \\
+\citet{vimala2023efficientnet} & Hybrid EfficientNet ensemble & high \\
 This work & ResNet-18 & 99.16\% \\
 \bottomrule
 \end{tabular}
@@ -346,13 +426,13 @@ The results above are strong, and that is exactly why the limitations deserve a 
 
 The most important caveat is that 99.16\% on this test set does not mean 99.16\% in a hospital. The test split comes from the same curated collection as the training data, with the same sources, scanners, and preprocessing conventions. Performance on data from an institution not represented here would almost certainly be lower, and nothing in these experiments measures that. Multi-institution evaluation is the single most valuable next step.
 
-Second, this is one run with one seed. We report no variance across seeds and no cross-validation, so the difference between 99.16\% and a number half a point lower is not something these experiments can resolve. The gap between peak validation accuracy (99.21\%) and validation accuracy at the selected checkpoint (99.13\%) is itself a hint at how much run-to-run noise sits at this level of performance. Any future comparison between architectures on this dataset should report a mean and spread over several seeds, because at this accuracy the differences between methods are smaller than the noise.
+Second, we now have a measure of run-to-run noise (Section~\ref{sec:variance}), and it is not negligible: test accuracy across five seeds ranged from 98.93\% to 99.31\%, a standard deviation of 0.14 points. That means a reported accuracy anywhere in roughly that range from a single run, ours or anyone else's, is consistent with the same underlying model and training recipe. Table~\ref{tab:comparison}'s comparison against other single-run numbers from the literature should be read with this in mind: at this accuracy level, the differences between competing methods are frequently smaller than the seed-to-seed noise of any one of them, and a fair comparison would need a seed sweep on every method being compared, not just this one.
 
-Third, the model is confidently wrong on a meaningful share of its errors, as Section~\ref{sec:results} describes. Calibration methods such as temperature scaling, along with proper uncertainty estimates from deep ensembles or Monte Carlo dropout, would be more valuable here than another point of accuracy, since a well-calibrated model can defer uncertain cases to a radiologist and a badly calibrated one cannot.
+Third, the model is confidently wrong on a meaningful share of its errors, as Section~\ref{sec:results} describes, and we followed up on this directly with temperature scaling (Section~\ref{sec:calibration}). The result was more mixed than we expected: aggregate test-set calibration barely moved, because it was already good, but the confidence of the specific high-confidence errors dropped substantially, cutting the number of errors above 0.90 confidence from four to one. Deeper uncertainty estimation, for example from deep ensembles or Monte Carlo dropout, was out of scope here and remains a reasonable next step, particularly because a single temperature fit on 1,143 validation images is a coarse instrument compared to per-sample uncertainty.
 
 Fourth, the model reads a single 2D slice and ignores the volumetric structure of the scan. The dominant glioma-to-meningioma confusion is plausibly a direct consequence: the cues that separate those two often live in tumor location and extent across slices. A 3D CNN or a model that aggregates predictions across neighboring slices is the natural fix and is likely to help precisely where this model is weakest.
 
-Fifth, we did not run a hyperparameter search or an ablation study. The settings in Table~\ref{tab:hyper} are sensible defaults from the literature, not the result of a search, and we cannot say how much the augmentation, the scheduler, or full fine-tuning each contributed. Those ablations are cheap to run with the released code and would make the baseline more informative.
+Fifth, the ablation in Section~\ref{sec:variance} answers part of what an earlier draft of this paper flagged as missing, but only part. We now know that full fine-tuning matters enormously (a 15.6-point accuracy gap versus a frozen backbone) and that augmentation gives a smaller, real improvement when the backbone is fine-tuned. What we still have not done is a search over learning rate, batch size, or scheduler settings, and the ablation itself is one seed per cell rather than an averaged comparison, so the exact gap sizes should be treated as indicative. A full hyperparameter sweep, ideally repeated across seeds, would make the baseline more informative still.
 
 Finally, this system only classifies, and it assumes it is handed a usable, roughly centered slice. A real diagnostic tool would need segmentation, automated quality control for artifacts and off-target slices, and integration with patient history to resemble how a radiologist actually works a case.
 
@@ -383,30 +463,90 @@ Selvaraju, R. R., Cogswell, M., Das, A., Vedantam, R., Parikh, D., \& Batra, D. 
 Grad-CAM: Visual explanations from deep networks via gradient-based localization.
 \textit{Proceedings of the IEEE International Conference on Computer Vision (ICCV)}, 618--626.
 
-\bibitem[Disci et al., 2023]{disci2023fine}
-Disci, M. B., Bayramoglu, N., \& Cinar, A. (2023).
-Fine-tuning pretrained models for brain tumor classification.
-\textit{Biomedical Signal Processing and Control}, 82, 104585.
+\bibitem[Disci et al., 2025]{disci2023fine}
+Disci, R., Gurcan, F., \& Soylu, A. (2025).
+Advanced brain tumor classification in MR images using transfer learning and pre-trained deep CNN models.
+\textit{Cancers}, 17(1), 121.
 
-\bibitem[Vimala et al., 2023]{vimala2023efficientnet}
-Vimala, V., Sathya, R., \& Suganya, R. (2023).
-Brain tumor classification using EfficientNet architecture.
-\textit{Computers in Biology and Medicine}, 160, 106010.
+\bibitem[Babu Vimala et al., 2023]{vimala2023efficientnet}
+Babu Vimala, B., Srinivasan, S., Mathivanan, S. K., Mahalakshmi, J. P., \& Dalu, G. T. (2023).
+Detection and classification of brain tumor using hybrid deep learning models.
+\textit{Scientific Reports}, 13, 23029.
 
 \bibitem[Chen et al., 2024]{chen2024fusion}
-Chen, L., Zhao, W., \& Wang, J. (2024).
-Fusion of pretrained CNN features for brain tumor classification.
-\textit{Expert Systems with Applications}, 233, 120096.
+Chen, W., Tan, X., Zhang, J., Du, G., Fu, Q., \& Jiang, H. (2024).
+A robust approach for multi-type classification of brain tumor using deep feature fusion.
+\textit{Frontiers in Neuroscience}, 18, 1288274.
 
-\bibitem[Ghaffar et al., 2020]{ghaffar2020dataset}
-Ghaffar, A. \textit{et al.} (2020).
-Brain MRI Images for Brain Tumor Detection.
+\bibitem[Ghaffar, 2024]{ghaffar2020dataset}
+Ghaffar, A. (2024).
+Brain Tumor Data.
 \textit{Mendeley Data}, V1. \url{https://data.mendeley.com/datasets/w4sw3s9f59/1}
 
 \bibitem[He et al., 2016]{he2016deep}
 He, K., Zhang, X., Ren, S., \& Sun, J. (2016).
 Deep residual learning for image recognition.
 \textit{Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}, 770--778.
+
+\bibitem[Cheng et al., 2015]{cheng2015enhanced}
+Cheng, J., Huang, W., Cao, S., Yang, R., Yang, W., Yun, Z., Wang, Z., \& Feng, Q. (2015).
+Enhanced performance of brain tumor classification via tumor region augmentation and partition.
+\textit{PLOS ONE}, 10(10), e0140381.
+
+\bibitem[Swati et al., 2019]{swati2019brain}
+Swati, Z. N. K., Zhao, Q., Kabir, M., Ali, F., Ali, Z., Ahmed, S., \& Lu, J. (2019).
+Brain tumor classification for MR images using transfer learning and fine-tuning.
+\textit{Computerized Medical Imaging and Graphics}, 75, 34--46.
+
+\bibitem[Deepak and Ameer, 2019]{deepak2019brain}
+Deepak, S., \& Ameer, P. M. (2019).
+Brain tumor classification using deep CNN features via transfer learning.
+\textit{Computers in Biology and Medicine}, 111, 103345.
+
+\bibitem[Khan et al., 2020]{khan2020brain}
+Khan, H. A., Jue, W., Mushtaq, M., \& Mushtaq, M. U. (2020).
+Brain tumor classification in MRI image using convolutional neural network.
+\textit{Mathematical Biosciences and Engineering}, 17(5), 6203--6216.
+
+\bibitem[Srinivas et al., 2022]{srinivas2022deep}
+Srinivas, C., Prasad, N. K. S., Zakariah, M., Alothaibi, Y. A., Shaukat, K., Partibane, B., \& Awal, H. (2022).
+Deep transfer learning approaches in performance analysis of brain tumor classification using MRI images.
+\textit{Journal of Healthcare Engineering}, 2022, 3264367.
+
+\bibitem[Dutta et al., 2022]{dutta2022multi}
+Dutta, P., Sathi, K. A., \& Islam, M. S. (2022).
+Multi-classification of brain tumor images using transfer learning based deep neural network.
+\textit{arXiv preprint}, arXiv:2206.08543.
+
+\bibitem[Krishnapriya and Karuna, 2023]{krishnapriya2023pretrained}
+Krishnapriya, S., \& Karuna, Y. (2023).
+Pre-trained deep learning models for brain MRI image classification.
+\textit{Frontiers in Human Neuroscience}, 17, 1150120.
+
+\bibitem[Anaya-Isaza et al., 2023]{anaya2023optimizing}
+Anaya-Isaza, A., Mera-Jim\'enez, L., Verdugo-Alejo, L., \& Sarasti, L. (2023).
+Optimizing MRI-based brain tumor classification and detection using AI: A comparative analysis of neural networks, transfer learning, data augmentation, and the cross-transformer network.
+\textit{European Journal of Radiology Open}, 10, 100484.
+
+\bibitem[Sankar et al., 2024]{sankar2024efficient}
+Sankar, M., Baiju, B. V., Preethi, D., Ananda Kumar, S., Mathivanan, S. K., \& Shah, M. A. (2024).
+Efficient brain tumor grade classification using ensemble deep learning models.
+\textit{BMC Medical Imaging}, 24, 297.
+
+\bibitem[Gasmi et al., 2024]{gasmi2024enhanced}
+Gasmi, K., Ben Aoun, N., Alsalem, K., Ben Ltaifa, I., Alrashdi, I., Ben Ammar, L., Mrabet, M., \& Shehab, A. (2024).
+Enhanced brain tumor diagnosis using combined deep learning models and weight selection technique.
+\textit{Frontiers in Neuroinformatics}, 18, 1444650.
+
+\bibitem[Alkharaan et al., 2026]{alkharaan2026brain}
+Alkharaan, R., Alobaidi, J., Bakarman, J., \& Alshamlan, H. (2026).
+Brain tumor classification and segmentation in MR images using EfficientNet and U-Net++ models.
+\textit{Diagnostics}, 16, 1745.
+
+\bibitem[Guo et al., 2017]{guo2017calibration}
+Guo, C., Pleiss, G., Sun, Y., \& Weinberger, K. Q. (2017).
+On calibration of modern neural networks.
+\textit{Proceedings of the 34th International Conference on Machine Learning (ICML)}, 1321--1330.
 
 \end{thebibliography}
 

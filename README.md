@@ -2,7 +2,7 @@
 
 This project implements a brain tumor classifier using a pretrained ResNet-18 model in PyTorch. It classifies T1-weighted MRI images into four categories: **glioma**, **meningioma**, **pituitary tumor**, and **no tumor**. The pipeline includes data loading, preprocessing, training, evaluation, and interpretability (Grad-CAM).
 
-On the held-out test set of the Mendeley/Kaggle brain tumor dataset, the released configuration reaches **99.16% accuracy** (macro F1 0.991, macro one-vs-rest AUC 0.9999). Full methodology, per-class results, and error analysis are in [`paper/main.pdf`](paper/main.pdf).
+On the held-out test set of the Mendeley/Kaggle brain tumor dataset, the released configuration reaches **99.16% accuracy** (macro F1 0.991, macro one-vs-rest AUC 0.9999), and across a 5-seed sweep, **99.16% ± 0.14%**. Full methodology, per-class results, a seed-variance and augmentation/fine-tuning ablation, and a calibration analysis are in [`paper/main.pdf`](paper/main.pdf).
 
 ## Preprint
 
@@ -101,6 +101,25 @@ python src/visualizer.py --data_dir ./data --save
 
 Saves `sample_grid.png` and `class_distribution.png` to `paper/figures/`.
 
+## Calibration
+
+Fits temperature scaling on the validation set and reports expected calibration error (ECE) and negative log-likelihood before/after, plus how confident the model's test-set errors were before/after scaling:
+
+```bash
+python src/calibrate.py --data_dir ./data --model_path checkpoints/tumor_model.pth
+```
+
+## Reproducing the seed-variance and ablation results
+
+The paper's seed-variance table (5 seeds, main config) and ablation table (augmentation on/off × full fine-tune/frozen backbone, seed 42) are each just `train.py` runs with different flags, e.g.:
+
+```bash
+python src/train.py --data_dir ./data --augment --seed 0 --checkpoint_dir runs/seed0 --fig_dir runs/seed0
+python src/train.py --data_dir ./data --seed 42 --freeze_backbone --checkpoint_dir runs/frozen --fig_dir runs/frozen
+```
+
+then evaluating each resulting checkpoint with `evaluate.py`.
+
 ---
 
 ## Inference
@@ -146,7 +165,8 @@ pdflatex main.tex
 │   ├── train.py              # Training loop: early stopping, LR scheduling, checkpoint metadata
 │   ├── evaluate.py             # Test-set metrics, confusion matrix, ROC curves, misclassified grid
 │   ├── gradcam.py                # Grad-CAM heatmap generation
-│   ├── inference.py                # Single-image inference
+│   ├── calibrate.py                # Temperature scaling + calibration metrics
+│   ├── inference.py                  # Single-image inference
 │   ├── visualizer.py                 # Sample grid + class distribution figures
 │   └── utils.py                        # Seeding, checkpoint I/O, shared plotting helpers
 ├── paper/

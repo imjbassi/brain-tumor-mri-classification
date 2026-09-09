@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 data/
 checkpoints/
+runs/
 *.pth
 *.aux
 *.log
