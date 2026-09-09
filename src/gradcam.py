@@ -74,8 +74,12 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Grad-CAM overlays for one example per class.")
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--model_path", type=str, required=True)
-    parser.add_argument("--output", type=str, default="gradcam_examples.png")
+    parser.add_argument("--fig_dir", type=str, default="paper/figures",
+                        help="Directory to save gradcam_examples.png in.")
     args = parser.parse_args()
+
+    os.makedirs(args.fig_dir, exist_ok=True)
+    output_path = os.path.join(args.fig_dir, "gradcam_examples.png")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ckpt = load_checkpoint(args.model_path, map_location=device)
@@ -97,7 +101,7 @@ def main():
         overlays.append(overlay_heatmap(image, cam))
         titles.append(f"true: {cls}\npred: {class_names[pred_idx]}")
 
-    plot_image_grid(overlays, titles, args.output, ncols=len(overlays) or 1,
+    plot_image_grid(overlays, titles, output_path, ncols=len(overlays) or 1,
                      suptitle="Grad-CAM: Regions Driving Each Prediction")
 
 

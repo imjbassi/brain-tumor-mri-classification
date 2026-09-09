@@ -1,6 +1,7 @@
 \documentclass[twocolumn]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
+\graphicspath{{figures/}}
 \usepackage{natbib}
 \usepackage{times}
 \usepackage{url}
@@ -18,7 +19,7 @@
 % placeholder box if a figure has not been generated yet, so the paper always
 % compiles, and picks up the real image automatically once it exists.
 \newcommand{\genfigure}[3]{%
-  \IfFileExists{#1}{%
+  \IfFileExists{figures/#1}{%
     \includegraphics[width=#2]{#1}%
   }{%
     \fbox{\parbox[c][3.2cm]{#2}{\centering\itshape #3}}%

@@ -1,5 +1,6 @@
 # train.py
 import argparse
+import os
 
 import torch
 import torch.nn as nn
@@ -62,8 +63,15 @@ def main():
     parser.add_argument("--patience", type=int, default=5,
                         help="Stop early if validation loss doesn't improve for this many epochs.")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--output_model", type=str, default="tumor_model.pth")
+    parser.add_argument("--checkpoint_dir", type=str, default="checkpoints",
+                        help="Directory to save the trained model checkpoint in.")
+    parser.add_argument("--fig_dir", type=str, default="paper/figures",
+                        help="Directory to save training_curves.png / confusion_matrix_val.png / history.json in.")
     args = parser.parse_args()
+
+    os.makedirs(args.checkpoint_dir, exist_ok=True)
+    os.makedirs(args.fig_dir, exist_ok=True)
+    output_model = os.path.join(args.checkpoint_dir, "tumor_model.pth")
 
     set_seed(args.seed)
 
@@ -107,19 +115,19 @@ def main():
             best_val_loss = val_loss
             best_val_preds, best_val_labels = val_preds, val_labels
             epochs_without_improvement = 0
-            save_checkpoint(args.output_model, model, class_names, args.backbone)
-            print(f"  New best model saved to {args.output_model}")
+            save_checkpoint(output_model, model, class_names, args.backbone)
+            print(f"  New best model saved to {output_model}")
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= args.patience:
                 print(f"No improvement for {args.patience} epochs, stopping early.")
                 break
 
-    save_history(history, "history.json")
-    plot_training_curves(history, "training_curves.png")
+    save_history(history, os.path.join(args.fig_dir, "history.json"))
+    plot_training_curves(history, os.path.join(args.fig_dir, "training_curves.png"))
 
     cm = confusion_matrix(best_val_labels, best_val_preds, labels=range(len(class_names)))
-    plot_confusion_matrix(cm, class_names, "confusion_matrix_val.png")
+    plot_confusion_matrix(cm, class_names, os.path.join(args.fig_dir, "confusion_matrix_val.png"))
 
     print(f"Best validation loss: {best_val_loss:.4f}")
 

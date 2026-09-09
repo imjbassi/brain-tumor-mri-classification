@@ -3,6 +3,7 @@
 figures referenced in the paper: confusion matrix, ROC curves, and a grid of
 misclassified examples."""
 import argparse
+import os
 
 import numpy as np
 import torch
@@ -72,7 +73,11 @@ def main():
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--model_path", type=str, required=True)
     parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--fig_dir", type=str, default="paper/figures",
+                        help="Directory to save confusion_matrix.png / roc_curves.png / misclassified_examples.png in.")
     args = parser.parse_args()
+
+    os.makedirs(args.fig_dir, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ckpt = load_checkpoint(args.model_path, map_location=device)
@@ -90,9 +95,9 @@ def main():
     print(classification_report(labels, preds, target_names=class_names, digits=4))
 
     cm = confusion_matrix(labels, preds, labels=range(len(class_names)))
-    plot_confusion_matrix(cm, class_names, "confusion_matrix.png")
-    plot_roc_curves(probs, labels, class_names, "roc_curves.png")
-    plot_misclassified(paths, preds, labels, class_names, "misclassified_examples.png")
+    plot_confusion_matrix(cm, class_names, os.path.join(args.fig_dir, "confusion_matrix.png"))
+    plot_roc_curves(probs, labels, class_names, os.path.join(args.fig_dir, "roc_curves.png"))
+    plot_misclassified(paths, preds, labels, class_names, os.path.join(args.fig_dir, "misclassified_examples.png"))
 
 
 if __name__ == "__main__":

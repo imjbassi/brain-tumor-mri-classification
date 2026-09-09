@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 data/
+checkpoints/
 *.pth
 *.aux
 *.log

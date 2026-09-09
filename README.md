@@ -1,95 +1,77 @@
-
-
 # Brain Tumor MRI Classification with PyTorch
 
-This project implements a brain tumor classifier using a pretrained ResNet-18 model in PyTorch. It classifies T1-weighted MRI images into four categories: **glioma tumor**, **meningioma tumor**, **pituitary tumor**, and **no tumor**. The pipeline includes data loading, preprocessing, training, evaluation, and inference.
+This project implements a brain tumor classifier using a pretrained ResNet-18 model in PyTorch. It classifies T1-weighted MRI images into four categories: **glioma**, **meningioma**, **pituitary tumor**, and **no tumor**. The pipeline includes data loading, preprocessing, training, evaluation, and interpretability (Grad-CAM).
+
+On the held-out test set of the Mendeley/Kaggle brain tumor dataset, the released configuration reaches **99.16% accuracy** (macro F1 0.991, macro one-vs-rest AUC 0.9999). Full methodology, per-class results, and error analysis are in [`paper/main.pdf`](paper/main.pdf).
 
 ## Preprint
 
-If you're interested in the methodology and results, please refer to our research preprint:
-
-**Bassi, J.** (2025). *Brain Tumor Classification with Pretrained CNNs in PyTorch*.  
+**Bassi, J.** (2025). *Brain Tumor Classification with Pretrained CNNs in PyTorch*.
 [DOI: 10.13140/RG.2.2.21638.28484](https://doi.org/10.13140/RG.2.2.21638.28484)
-
-This paper details the architecture, transfer learning approach, dataset setup, and evaluation metrics, including training accuracy, confusion matrix, and limitations of the model.
 
 ---
 
 ## Dataset
 
-The dataset used is the **Brain Tumor Classification (MRI)** dataset by Ghaffar et al., available on [Mendeley Data](https://data.mendeley.com/datasets/w4sw3s9f59/1).
+Four classes: glioma, meningioma, pituitary tumor, no tumor, pre-split into training and testing sets by the dataset source.
 
-**Download**:
-[https://data.mendeley.com/datasets/w4sw3s9f59/1](https://data.mendeley.com/datasets/w4sw3s9f59/1)
+**Download**: [https://data.mendeley.com/datasets/w4sw3s9f59/1](https://data.mendeley.com/datasets/w4sw3s9f59/1)
 
-**Structure**:
+**Expected structure** (place this at `data/` in the project root, or point `--data_dir` at it):
 
 ```
-Training/
-├── glioma_tumor/
-├── meningioma_tumor/
-├── pituitary_tumor/
-└── no_tumor/
-
-Testing/
-├── glioma_tumor/
-├── meningioma_tumor/
-├── pituitary_tumor/
-└── no_tumor/
+data/
+├── Training/
+│   ├── glioma/
+│   ├── meningioma/
+│   ├── notumor/
+│   └── pituitary/
+└── Testing/
+    ├── glioma/
+    ├── meningioma/
+    ├── notumor/
+    └── pituitary/
 ```
 
-After downloading, extract the archive and place the contents in your project directory. You can rename the `Training/` folder to `data/` or provide its path using the `--data_dir` flag.
+Folder names inside `Training/`/`Testing/` may vary slightly depending on which mirror of the dataset you download; rename them to match if needed.
 
-![Sample Brain Tumor MRI](Figure_1.png)
+![Sample Brain Tumor MRI](paper/figures/Figure_1.png)
 
 ---
 
 ## Installation
 
-1. Clone the repository:
+```bash
+git clone https://github.com/imjbassi/Brain-Tumor-MRI-Classification.git
+cd Brain-Tumor-MRI-Classification
+pip install -r requirements.txt
+```
 
-   ```bash
-   git clone https://github.com/yourusername/brain-tumor-classifier.git
-   cd brain-tumor-classifier
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-**Required packages**:
-
-* `torch`
-* `torchvision`
-* `Pillow`
+For GPU training, install a CUDA-enabled PyTorch build for your GPU/driver instead of the default CPU wheel (see [pytorch.org](https://pytorch.org/get-started/locally/)).
 
 ---
 
 ## Training
 
-Point `--data_dir` at the dataset root (the folder that directly contains `Training/` and `Testing/`):
+Run from the project root; `--data_dir` points at the dataset root:
 
 ```bash
-python train.py \
+python src/train.py \
     --data_dir ./data \
     --backbone resnet18 \
     --epochs 30 \
     --batch_size 32 \
     --learning_rate 0.0001 \
-    --augment \
-    --output_model tumor_model.pth
+    --augment
 ```
 
 * The `Training` split is stratified 80/20 into train and validation sets; `Testing` is kept fully held out for `evaluate.py`.
 * `--augment` turns on random flip/rotation/color-jitter for training images.
 * `--balance_classes` uses a class-weighted sampler if your class counts are uneven.
 * Training stops early if validation loss hasn't improved for `--patience` epochs (default 5), and the learning rate is halved on a plateau.
-* The checkpoint saved to `--output_model` bundles the weights with `class_names` and `backbone`, so downstream scripts never need to hardcode the class order.
-* Also writes `history.json`, `training_curves.png`, and `confusion_matrix_val.png`.
+* Saves the checkpoint to `checkpoints/tumor_model.pth` (bundled with `class_names` and `backbone`, so downstream scripts never hardcode the class order), and writes `history.json`, `training_curves.png`, and `confusion_matrix_val.png` to `paper/figures/`.
 
-Other backbones: `--backbone resnet34` or `--backbone efficientnet_b0`. Add `--freeze_backbone` to only train the new classification head (faster, useful for quick experiments).
+Other backbones: `--backbone resnet34` or `--backbone efficientnet_b0`. Add `--freeze_backbone` to only train the new classification head (faster, useful for quick experiments). Override output locations with `--checkpoint_dir` / `--fig_dir`.
 
 ---
 
@@ -98,36 +80,34 @@ Other backbones: `--backbone resnet34` or `--backbone efficientnet_b0`. Add `--f
 Run the held-out test set through a trained checkpoint to get precision/recall/F1 per class plus the figures used in the paper:
 
 ```bash
-python evaluate.py --data_dir ./data --model_path tumor_model.pth
+python src/evaluate.py --data_dir ./data --model_path checkpoints/tumor_model.pth
 ```
 
-Produces `confusion_matrix.png`, `roc_curves.png`, and `misclassified_examples.png`.
+Saves `confusion_matrix.png`, `roc_curves.png`, and `misclassified_examples.png` to `paper/figures/`.
 
 ## Interpretability (Grad-CAM)
 
 ```bash
-python gradcam.py --data_dir ./data --model_path tumor_model.pth
+python src/gradcam.py --data_dir ./data --model_path checkpoints/tumor_model.pth
 ```
 
-Saves `gradcam_examples.png`, one heatmap overlay per class, showing which regions of the scan drove the prediction (Selvaraju et al., 2017).
+Saves `gradcam_examples.png` to `paper/figures/`, one heatmap overlay per class, showing which regions of the scan drove the prediction (Selvaraju et al., 2017).
 
 ## Dataset figures
 
 ```bash
-python visualizer.py --data_dir ./data --save
+python src/visualizer.py --data_dir ./data --save
 ```
 
-Saves `sample_grid.png` and `class_distribution.png`.
+Saves `sample_grid.png` and `class_distribution.png` to `paper/figures/`.
 
 ---
 
 ## Inference
 
-To classify a new MRI image:
-
 ```bash
-python inference.py \
-    --model_path tumor_model.pth \
+python src/inference.py \
+    --model_path checkpoints/tumor_model.pth \
     --image_path ./data/Testing/glioma/example1.jpg
 ```
 
@@ -142,22 +122,41 @@ Runner-up predictions:
 
 ---
 
+## Rebuilding the paper
+
+Once all figures above have been generated, compile the LaTeX source from the `paper/` directory:
+
+```bash
+cd paper
+pdflatex main.tex
+pdflatex main.tex
+```
+
+(Two passes to resolve citations and figure/table references.)
+
+---
+
 ## Project Structure
 
 ```
 .
-├── data_loader.py         # Dataset class and DataLoader utilities (stratified split, augmentation)
-├── model.py                # Backbone factory (ResNet-18/34, EfficientNet-B0) + Grad-CAM hook
-├── train.py                  # Training loop: early stopping, LR scheduling, checkpoint metadata
-├── evaluate.py                 # Test-set metrics, confusion matrix, ROC curves, misclassified grid
-├── gradcam.py                    # Grad-CAM heatmap generation
-├── inference.py                    # Single-image inference
-├── visualizer.py                     # Sample grid + class distribution figures
-├── utils.py                            # Seeding, checkpoint I/O, shared plotting helpers
-├── requirements.txt                      # List of dependencies
-├── Figure_1.png                            # Sample visualization (optional)
-├── main.tex                                  # Paper source
-└── README.md                                   # Project overview and instructions
+├── src/
+│   ├── data_loader.py     # Dataset class and DataLoader utilities (stratified split, augmentation)
+│   ├── model.py            # Backbone factory (ResNet-18/34, EfficientNet-B0) + Grad-CAM hook
+│   ├── train.py              # Training loop: early stopping, LR scheduling, checkpoint metadata
+│   ├── evaluate.py             # Test-set metrics, confusion matrix, ROC curves, misclassified grid
+│   ├── gradcam.py                # Grad-CAM heatmap generation
+│   ├── inference.py                # Single-image inference
+│   ├── visualizer.py                 # Sample grid + class distribution figures
+│   └── utils.py                        # Seeding, checkpoint I/O, shared plotting helpers
+├── paper/
+│   ├── main.tex             # Paper source
+│   ├── main.pdf             # Compiled paper
+│   └── figures/              # All figures referenced by the paper (generated by src/ scripts)
+├── checkpoints/            # Trained model weights (gitignored, created by train.py)
+├── data/                   # Dataset (gitignored, download separately)
+├── requirements.txt
+└── README.md
 ```
 
 ---
@@ -167,4 +166,3 @@ Runner-up predictions:
 **Dataset**:
 
 > Ghaffar, A. (2024). *Brain Tumor Classification (MRI)*. Mendeley Data, V1. [https://doi.org/10.17632/w4sw3s9f59.1](https://doi.org/10.17632/w4sw3s9f59.1)
-

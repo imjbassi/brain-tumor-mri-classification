@@ -64,13 +64,18 @@ def main():
     parser.add_argument("--num_samples", type=int, default=4)
     parser.add_argument("--save", action="store_true",
                         help="Save figures to disk instead of opening a window.")
+    parser.add_argument("--fig_dir", type=str, default="paper/figures",
+                        help="Directory to save sample_grid.png / class_distribution.png in.")
     args = parser.parse_args()
+
+    if args.save:
+        os.makedirs(args.fig_dir, exist_ok=True)
 
     train_dir = os.path.join(args.data_dir, "Training")
     sample_dir = train_dir if os.path.isdir(train_dir) else args.data_dir
     visualize_samples(sample_dir, num_samples=args.num_samples,
-                       out_path="sample_grid.png" if args.save else None)
-    summarize_class_distribution(args.data_dir)
+                       out_path=os.path.join(args.fig_dir, "sample_grid.png") if args.save else None)
+    summarize_class_distribution(args.data_dir, out_path=os.path.join(args.fig_dir, "class_distribution.png"))
 
 
 if __name__ == "__main__":
