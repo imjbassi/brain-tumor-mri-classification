@@ -1,0 +1,48 @@
+{
+  "n_train": 5712,
+  "n_test": 1311,
+  "exact_file_duplicates": 103,
+  "exact_pixel_duplicates": 216,
+  "exact_pixel_duplicates_within_train": 207,
+  "cos_threshold": 0.95,
+  "phash_threshold": 8,
+  "overall_near_duplicate_cos": 973,
+  "per_class": {
+    "glioma": {
+      "n": 300,
+      "mean_sim": 0.939551591873169,
+      "near_cos": 111,
+      "near_phash": 83,
+      "both": 23
+    },
+    "meningioma": {
+      "n": 306,
+      "mean_sim": 0.9718647599220276,
+      "near_cos": 251,
+      "near_phash": 115,
+      "both": 111
+    },
+    "notumor": {
+      "n": 405,
+      "mean_sim": 0.9923250675201416,
+      "near_cos": 402,
+      "near_phash": 351,
+      "both": 351
+    },
+    "pituitary": {
+      "n": 300,
+      "mean_sim": 0.9586761593818665,
+      "near_cos": 209,
+      "near_phash": 39,
+      "both": 19
+    }
+  },
+  "best_sim_percentiles": {
+    "5": 0.9191329479217529,
+    "25": 0.9495636224746704,
+    "50": 0.9699853658676147,
+    "75": 0.9955260753631592,
+    "95": 1.0000001192092896,
+    "99": 1.0000004768371582
+  }
+}
