@@ -1,0 +1,82 @@
+{
+  "seed42": {
+    "test_accuracy": 0.8352402745995423,
+    "macro_f1": 0.8261910488626616,
+    "macro_auc": 0.9610208368846284,
+    "n_test": 1311,
+    "n_errors": 216,
+    "per_class_f1": {
+      "glioma": 0.8064516129032258,
+      "meningioma": 0.6734348561759729,
+      "notumor": 0.9035294117647059,
+      "pituitary": 0.9213483146067416
+    },
+    "n_epochs_run": 30,
+    "best_val_acc": 0.8810148731408574,
+    "seed": 42
+  },
+  "seed0": {
+    "test_accuracy": 0.8291380625476735,
+    "macro_f1": 0.8190693996385412,
+    "macro_auc": 0.9574658781046631,
+    "n_test": 1311,
+    "n_errors": 224,
+    "per_class_f1": {
+      "glioma": 0.8056537102473498,
+      "meningioma": 0.6515679442508711,
+      "notumor": 0.8927738927738927,
+      "pituitary": 0.9262820512820513
+    },
+    "n_epochs_run": 30,
+    "best_val_acc": 0.8740157480314961,
+    "seed": 0
+  },
+  "seed1": {
+    "test_accuracy": 0.8405797101449275,
+    "macro_f1": 0.8340393945625608,
+    "macro_auc": 0.9601247286552415,
+    "n_test": 1311,
+    "n_errors": 209,
+    "per_class_f1": {
+      "glioma": 0.8228980322003577,
+      "meningioma": 0.6865671641791045,
+      "notumor": 0.8988235294117647,
+      "pituitary": 0.9278688524590164
+    },
+    "n_epochs_run": 30,
+    "best_val_acc": 0.8740157480314961,
+    "seed": 1
+  },
+  "seed2": {
+    "test_accuracy": 0.8375286041189931,
+    "macro_f1": 0.8296760280115402,
+    "macro_auc": 0.9581604777909941,
+    "n_test": 1311,
+    "n_errors": 213,
+    "per_class_f1": {
+      "glioma": 0.8110091743119267,
+      "meningioma": 0.6798679867986799,
+      "notumor": 0.903755868544601,
+      "pituitary": 0.9240710823909531
+    },
+    "n_epochs_run": 30,
+    "best_val_acc": 0.8670166229221348,
+    "seed": 2
+  },
+  "seed3": {
+    "test_accuracy": 0.8360030511060259,
+    "macro_f1": 0.8279461186266679,
+    "macro_auc": 0.9583012877155678,
+    "n_test": 1311,
+    "n_errors": 215,
+    "per_class_f1": {
+      "glioma": 0.8114901256732495,
+      "meningioma": 0.6745362563237775,
+      "notumor": 0.8969555035128806,
+      "pituitary": 0.9288025889967637
+    },
+    "n_epochs_run": 30,
+    "best_val_acc": 0.8862642169728784,
+    "seed": 3
+  }
+}
