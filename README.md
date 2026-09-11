@@ -2,7 +2,13 @@
 
 This project implements a brain tumor classifier using a pretrained ResNet-18 model in PyTorch. It classifies T1-weighted MRI images into four categories: **glioma**, **meningioma**, **pituitary tumor**, and **no tumor**. The pipeline includes data loading, preprocessing, training, evaluation, and interpretability (Grad-CAM).
 
-On the held-out test set of the Mendeley/Kaggle brain tumor dataset, the released configuration reaches **99.16% accuracy** (macro F1 0.991, macro one-vs-rest AUC 0.9999), and across a 5-seed sweep, **99.16% ± 0.14%**. Full methodology, per-class results, a seed-variance and augmentation/fine-tuning ablation, and a calibration analysis are in [`paper/main.pdf`](paper/main.pdf).
+On the released split of the Mendeley/Kaggle brain tumor dataset, this pipeline reaches **99.22% ± 0.16%** accuracy across ten seeds.
+
+**That number does not mean what it appears to mean.** This repository also contains an audit of the benchmark, and the audit found that the released split has **complete patient-level leakage**: every test image with a recoverable patient identifier (761 of 761, across all three tumor classes) comes from a patient that also appears in the training set. Accuracy measured on that split describes recognizing more slices of brains the model already studied, not generalizing to a new patient.
+
+The audit also found 16.5% of test images are pixel-identical to a training image, and that the 7,023 advertised files contain 6,597 distinct images. Deduplication alone does **not** change accuracy, because it removes repeated images while leaving every repeated patient in place.
+
+We recover patient identifiers by matching against the original [figshare dataset](https://doi.org/10.6084/m9.figshare.1512427) of Cheng et al., and rebuild a patient-disjoint split. On that split accuracy falls to **94.75% ± 0.80%**, and to **93.19%** on the three tumor classes alone: a 6.7-fold increase in error rate. That is the honest number for this pipeline on unseen patients. Full methodology, the corrected matching procedure, and the re-evaluation are in [`paper/main.pdf`](paper/main.pdf).
 
 ## Preprint
 
@@ -100,6 +106,52 @@ python src/visualizer.py --data_dir ./data --save
 ```
 
 Saves `sample_grid.png` and `class_distribution.png` to `paper/figures/`.
+
+## Auditing the dataset
+
+Reproduce the audit on your own copy. These are the scripts behind the paper's Section 3.
+
+```bash
+python src/audit_leakage.py --data_dir ./data
+python src/count_unique.py --data_dir ./data
+```
+
+`audit_leakage.py` reports exact and near-duplicate contamination across the split and writes evidence figures. `count_unique.py` reports how many genuinely distinct images each class contains.
+
+### Recovering patient identifiers
+
+The aggregated dataset drops the patient IDs present in its figshare source. To recover them you need the original figshare release (~879 MB, CC BY 4.0):
+
+```bash
+# download the 4 .zip archives + cvind.mat from
+# https://doi.org/10.6084/m9.figshare.1512427  ->  external/figshare/, then unzip to external/figshare/mat/
+python src/match_figshare.py --data_dir ./data --mat_dir external/figshare/mat
+```
+
+This crop-normalizes both collections and searches all eight dihedral orientations (the aggregated images are rotated 90° relative to figshare). It writes `figshare_patient_map.json` and reports patient-level train/test overlap.
+
+A naive version of this matching returns a **false negative**. `src/provenance_sensitivity.py` shows why: the similarity measures survive JPEG and resizing but collapse under brain cropping, so a genuine match scores no better than an unrelated image unless both sides are crop-normalized first.
+
+```bash
+python src/provenance_sensitivity.py --mat_dir external/figshare/mat
+```
+
+### Building a patient-disjoint split
+
+```bash
+python src/build_patient_split.py --data_dir ./data --map figshare_patient_map.json --out_dir ./data_patient
+python src/run_seed_sweep.py --data_dir ./data_patient --tag patient --augment --seeds 42 0 1 2 3
+```
+
+`build_patient_split.py` assigns whole patients to one side of the boundary and **asserts** zero patient overlap before writing. Tumor images without a recoverable ID go to training only, so they can never contaminate the test set. The `notumor` class has no patient IDs and is deduplicated and split randomly, which is why results are also reported for the three tumor classes alone.
+
+### Testing the memorization hypothesis
+
+```bash
+python src/prediction_agreement.py --data_dir ./data --runs_dir runs/leaky
+```
+
+Measures per-image prediction agreement across seeds and error rates, split by whether an image is duplicated in training.
 
 ## Calibration
 

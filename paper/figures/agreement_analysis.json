@@ -1,0 +1,24 @@
+{
+  "n_seeds": 10,
+  "n_test": 1311,
+  "n_duplicated": 216,
+  "agreement_duplicated": 0.9861111111111112,
+  "agreement_not_duplicated": 0.9956164383561642,
+  "unanimous_frac_duplicated": 0.9259259259259259,
+  "unanimous_frac_not_duplicated": 0.9762557077625571,
+  "error_rates": {
+    "duplicated": {
+      "errors": 30,
+      "total": 2160,
+      "rate": 0.013888888888888888
+    },
+    "not duplicated": {
+      "errors": 72,
+      "total": 10950,
+      "rate": 0.006575342465753425
+    }
+  },
+  "error_rate_ratio": 2.112268518518518,
+  "fisher_odds_ratio": 2.1279342723004695,
+  "fisher_p": 0.0010958531117998985
+}

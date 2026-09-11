@@ -10,4 +10,4 @@ runs/
 external/
 data_dedup/
 data_dedup_near/
-figshare_patient_map.json
+data_patient/
