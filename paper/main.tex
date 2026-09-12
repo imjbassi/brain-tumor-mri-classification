@@ -884,6 +884,9 @@ retired in Section~\ref{sec:patientsplit}; it used an ungrouped validation
 split and is listed for completeness rather than because any reported figure
 depends on it.
 
+\section*{Relation to a Previous Preprint}
+An earlier version of this work was posted as \emph{Brain Tumor Classification with Pretrained CNNs in PyTorch} (DOI: \texttt{10.13140/RG.2.2.21638.28484}). That version predates the dataset audit reported here. It presents the released-split accuracy as a result rather than as a measurement artifact, and it contains none of the provenance recovery, the leakage analysis, or the patient-disjoint evaluation. It is superseded by this manuscript, and the figures it reports should not be cited.
+
 \section*{Code and Data Availability}
 A completed CLAIM 2024 reporting checklist accompanies this submission as supplementary material (\texttt{paper/CLAIM\_checklist.md} in the repository). All code, the recovered patient map, the fold assignment, per-run metrics, and per-image predictions are available at \url{https://github.com/imjbassi/Brain-Tumor-MRI-Classification} and permanently archived at \url{https://doi.org/10.5281/zenodo.22728198} (DOI: \texttt{10.5281/zenodo.22728198}). That deposit is release v1.1.0, which is the exact state of the code and artifacts from which every number in this paper was produced. The code is released under the MIT License. The repository contains the audit tooling (\texttt{audit\_leakage.py}, \texttt{match\_figshare.py}, \texttt{provenance\_sensitivity.py}, \texttt{count\_unique.py}), the split constructors (\texttt{build\_clean\_split.py}, \texttt{build\_cv\_folds.py}, \texttt{build\_patient\_split.py}), and the training and evaluation pipeline, with pinned dependency versions.
 
