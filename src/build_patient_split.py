@@ -41,6 +41,106 @@ from data_loader import BrainMRIDataset
 TUMOR_CLASSES = ("glioma", "meningioma", "pituitary")
 
 
+def build_fold(args):
+    """Materialize one cross-validation fold from a precomputed cv_folds.json.
+
+    The fold assignment is read, never recomputed, so the partition on disk is
+    exactly the one recorded in the manifest and is independent of any
+    training seed.
+    """
+    folds = json.load(open(args.folds))
+    k = args.fold_idx
+    if not 0 <= k < folds["n_folds"]:
+        raise SystemExit(f"--fold_idx must be in [0, {folds['n_folds']})")
+
+    pid_to_fold = folds["pid_to_fold"]
+    notumor_cluster = folds["notumor_cluster"]
+    cluster_to_fold = folds["cluster_to_fold"]
+    unmatched = set(folds["unmatched_tumor"])
+    mapping = json.load(open(args.map))
+
+    train_ds = BrainMRIDataset(os.path.join(args.data_dir, "Training"))
+    test_ds = BrainMRIDataset(os.path.join(args.data_dir, "Testing"),
+                               class_to_idx=train_ds.class_to_idx)
+    idx_to_class = {i: c for c, i in train_ds.class_to_idx.items()}
+
+    all_images = []
+    for ds in (train_ds, test_ds):
+        for p, lab in zip(ds.image_paths, ds.labels):
+            all_images.append((p, os.path.relpath(p).replace("\\", "/"), idx_to_class[lab]))
+
+    def dest(split, cls, path):
+        d = os.path.join(args.out_dir, split, cls)
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, os.path.basename(path))
+
+    counts = defaultdict(lambda: defaultdict(int))
+    train_groups, test_groups = set(), set()
+    seen_notumor = set()
+    n_skipped_dup = 0
+
+    for path, key, cls in all_images:
+        if cls == "notumor":
+            cid = notumor_cluster.get(key)
+            if cid is None:
+                continue
+            # collapse exact duplicates: keep one representative per pixel hash
+            h = pixel_md5(path)
+            if h in seen_notumor:
+                n_skipped_dup += 1
+                continue
+            seen_notumor.add(h)
+            split = "Testing" if cluster_to_fold[cid] == k else "Training"
+            group = cid
+        elif key in unmatched:
+            split, group = "Training", None      # never eligible for test
+        else:
+            pid = mapping[key]["pid"]
+            split = "Testing" if pid_to_fold[pid] == k else "Training"
+            group = pid
+
+        if group is not None:
+            (test_groups if split == "Testing" else train_groups).add(group)
+        shutil.copy2(path, dest(split, cls, path))
+        counts[split][cls] += 1
+
+    overlap = train_groups & test_groups
+    assert not overlap, f"GROUP LEAKAGE in fold {k}: {len(overlap)} groups on both sides"
+
+    # independent verification: no identical pixels across the boundary
+    tr_hashes = set()
+    for cls_dir in os.listdir(os.path.join(args.out_dir, "Training")):
+        d = os.path.join(args.out_dir, "Training", cls_dir)
+        for fn in os.listdir(d):
+            tr_hashes.add(pixel_md5(os.path.join(d, fn)))
+    dup_across = 0
+    for cls_dir in os.listdir(os.path.join(args.out_dir, "Testing")):
+        d = os.path.join(args.out_dir, "Testing", cls_dir)
+        for fn in os.listdir(d):
+            if pixel_md5(os.path.join(d, fn)) in tr_hashes:
+                dup_across += 1
+    assert dup_across == 0, f"{dup_across} pixel-identical images across the fold boundary"
+
+    print(f"Fold {k}: {sum(counts['Training'].values())} train, "
+          f"{sum(counts['Testing'].values())} test")
+    for split in ("Training", "Testing"):
+        print(f"  {split}: {dict(counts[split])}")
+    print(f"  groups: {len(train_groups)} train, {len(test_groups)} test, 0 shared")
+    print(f"  notumor exact duplicates dropped: {n_skipped_dup}")
+
+    manifest = {
+        "mode": "cv_fold", "fold_idx": k, "n_folds": folds["n_folds"],
+        "counts": {s: dict(c) for s, c in counts.items()},
+        "n_train_groups": len(train_groups), "n_test_groups": len(test_groups),
+        "group_overlap": 0, "pixel_duplicates_across_boundary": 0,
+        "notumor_exact_duplicates_dropped": n_skipped_dup,
+        "folds_file": args.folds,
+    }
+    with open(args.manifest, "w") as f:
+        json.dump(manifest, f, indent=2)
+    print(f"Wrote {args.manifest}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Build a patient-disjoint dataset split.")
     parser.add_argument("--data_dir", type=str, required=True)
@@ -49,10 +149,19 @@ def main():
     parser.add_argument("--test_frac", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--manifest", type=str, default="patient_split_manifest.json")
+    parser.add_argument("--folds", type=str, default=None,
+                        help="cv_folds.json from build_cv_folds.py. With --fold_idx, "
+                             "materializes that fold instead of a fresh random partition.")
+    parser.add_argument("--fold_idx", type=int, default=None)
     args = parser.parse_args()
 
     if os.path.exists(args.out_dir):
         raise SystemExit(f"{args.out_dir} already exists; delete it or pick another --out_dir")
+
+    if args.folds is not None or args.fold_idx is not None:
+        if args.folds is None or args.fold_idx is None:
+            raise SystemExit("--folds and --fold_idx must be given together")
+        return build_fold(args)
 
     rng = np.random.default_rng(args.seed)
     mapping = json.load(open(args.map))

@@ -11,3 +11,5 @@ external/
 data_dedup/
 data_dedup_near/
 data_patient/
+data_cv_fold*/
+group_map.json

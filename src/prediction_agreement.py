@@ -101,16 +101,76 @@ def main():
         print(f"  {name:>15s}: {n_err} / {n_tot} = {100*rate:.3f}%  95% CI [{100*lo:.3f}%, {100*hi:.3f}%]")
         res[name] = {"errors": n_err, "total": n_tot, "rate": rate}
 
-    table = [[res["duplicated"]["errors"],
-              res["duplicated"]["total"] - res["duplicated"]["errors"]],
-             [res["not duplicated"]["errors"],
-              res["not duplicated"]["total"] - res["not duplicated"]["errors"]]]
-    odds, p = stats.fisher_exact(table)
     ratio = res["duplicated"]["rate"] / res["not duplicated"]["rate"]
     print(f"\n  duplicated / non-duplicated error-rate ratio: {ratio:.2f}x")
-    print(f"  Fisher exact: odds ratio {odds:.3f}, p = {p:.4g}")
+
+    # A Fisher exact test over the pooled predictions would be invalid here.
+    # Pooling n_seeds models x n_images gives correlated, not independent,
+    # Bernoulli trials: the same image is scored repeatedly by models that
+    # agree with each other most of the time (see the agreement figures
+    # above). The effective sample size is nearer the number of images than
+    # the number of predictions, so such a test reports a p-value far smaller
+    # than the data support. Two valid alternatives are used instead, with
+    # the model and the image as the respective units of replication.
+
+    # (a) Per-seed paired test: one difference per model.
+    per_seed = []
+    for s in range(n_seeds):
+        d = errs[s, is_dup].mean()
+        nd = errs[s, ~is_dup].mean()
+        per_seed.append(d - nd)
+    per_seed = np.array(per_seed)
+    t_stat, t_p = stats.ttest_1samp(per_seed, 0.0)
+    try:
+        w_stat, w_p = stats.wilcoxon(per_seed)
+    except ValueError:
+        w_stat, w_p = float("nan"), float("nan")
+    sem = per_seed.std(ddof=1) / np.sqrt(len(per_seed))
+    tcrit = stats.t.ppf(0.975, len(per_seed) - 1)
+    ci = (per_seed.mean() - tcrit * sem, per_seed.mean() + tcrit * sem)
+    print(f"\n  (a) per-seed paired difference (unit = model, n={n_seeds}):")
+    print(f"      mean {100*per_seed.mean():+.3f} pts, 95% CI "
+          f"[{100*ci[0]:+.3f}, {100*ci[1]:+.3f}], paired t p = {t_p:.4g}, "
+          f"Wilcoxon p = {w_p:.4g}")
+
+    # (b) Image-level permutation test: shuffle the duplicate label across
+    # images, keeping each image's whole vector of per-seed predictions
+    # intact, so within-image correlation is preserved under the null.
+    rng = np.random.default_rng(0)
+    obs = ratio
+    per_image_err = errs.mean(axis=0)          # mean error rate per image
+    n_dup = int(is_dup.sum())
+    count = 0
+    n_perm = 10000
+    for _ in range(n_perm):
+        idx = rng.permutation(len(per_image_err))
+        a = per_image_err[idx[:n_dup]].mean()
+        b = per_image_err[idx[n_dup:]].mean()
+        if b > 0 and (a / b) >= obs:
+            count += 1
+    perm_p = (count + 1) / (n_perm + 1)
+    print(f"  (b) image-level permutation test (unit = image, {n_perm} perms): "
+          f"p = {perm_p:.4g}")
+
+    # (c) Class-stratified view. glioma contributes no duplicated test images
+    # and is the hardest class, so it sits entirely in the reference group and
+    # biases the unadjusted comparison against the finding.
+    print("  (c) per-class error rates (duplicated vs not):")
+    per_class = {}
+    for ci_, cname in enumerate(class_names):
+        cm = labels == ci_
+        d_m, nd_m = cm & is_dup, cm & ~is_dup
+        d_rate = float(errs[:, d_m].mean()) if d_m.sum() else None
+        nd_rate = float(errs[:, nd_m].mean()) if nd_m.sum() else None
+        per_class[cname] = {"n_dup": int(d_m.sum()), "n_nondup": int(nd_m.sum()),
+                            "err_dup": d_rate, "err_nondup": nd_rate}
+        ds = "n/a" if d_rate is None else f"{100*d_rate:.2f}%"
+        ns = "n/a" if nd_rate is None else f"{100*nd_rate:.2f}%"
+        print(f"      {cname:>11s}: dup {ds:>8s} (n={int(d_m.sum()):4d})   "
+              f"non-dup {ns:>8s} (n={int(nd_m.sum()):4d})")
+
     if ratio > 1:
-        print("  Duplicated images are MISSED MORE OFTEN than non-duplicated ones,")
+        print("\n  Duplicated images are MISSED MORE OFTEN than non-duplicated ones,")
         print("  which is the opposite of what memorization would produce.")
 
     out = {
@@ -123,8 +183,16 @@ def main():
         "unanimous_frac_not_duplicated": float(unanimous[~is_dup].mean()),
         "error_rates": res,
         "error_rate_ratio": float(ratio),
-        "fisher_odds_ratio": float(odds),
-        "fisher_p": float(p),
+        "per_seed_diff_mean": float(per_seed.mean()),
+        "per_seed_diff_ci95": [float(ci[0]), float(ci[1])],
+        "per_seed_paired_t_p": float(t_p),
+        "per_seed_wilcoxon_p": float(w_p),
+        "permutation_p": float(perm_p),
+        "n_permutations": n_perm,
+        "per_class": per_class,
+        "note": ("Fisher exact on pooled predictions was withdrawn: pooling "
+                 "seeds x images violates independence. Unit of replication is "
+                 "the model in (a) and the image in (b)."),
     }
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w") as f:

@@ -67,6 +67,11 @@ def main():
                         help="Directory to save the trained model checkpoint in.")
     parser.add_argument("--fig_dir", type=str, default="paper/figures",
                         help="Directory to save training_curves.png / confusion_matrix_val.png / history.json in.")
+    parser.add_argument("--group_map", type=str, default=None,
+                        help="JSON mapping image path -> group id (patient or near-duplicate "
+                             "cluster). When given, the train/validation split is grouped so no "
+                             "patient straddles it. Strongly recommended: without it, model "
+                             "selection is done against slices of patients the model trained on.")
     args = parser.parse_args()
 
     os.makedirs(args.checkpoint_dir, exist_ok=True)
@@ -78,9 +83,16 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
+    if args.group_map:
+        print(f"Grouped train/validation split using {args.group_map}")
+    else:
+        print("WARNING: ungrouped train/validation split; model selection may be "
+              "contaminated by patients shared between train and validation.")
+
     train_loader, val_loader, _, class_names = get_dataloaders(
         args.data_dir, batch_size=args.batch_size, val_split=args.val_split,
         augment=args.augment, balance_classes=args.balance_classes, seed=args.seed,
+        group_map=args.group_map,
     )
     print(f"Classes: {class_names}")
 

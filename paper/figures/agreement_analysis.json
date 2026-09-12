@@ -19,6 +19,40 @@
     }
   },
   "error_rate_ratio": 2.112268518518518,
-  "fisher_odds_ratio": 2.1279342723004695,
-  "fisher_p": 0.0010958531117998985
+  "per_seed_diff_mean": 0.007313546423135464,
+  "per_seed_diff_ci95": [
+    -0.002230863537559251,
+    0.01685795638383018
+  ],
+  "per_seed_paired_t_p": 0.11705642930573143,
+  "per_seed_wilcoxon_p": 0.2265625,
+  "permutation_p": 0.059694030596940305,
+  "n_permutations": 10000,
+  "per_class": {
+    "glioma": {
+      "n_dup": 0,
+      "n_nondup": 300,
+      "err_dup": null,
+      "err_nondup": 0.014666666666666666
+    },
+    "meningioma": {
+      "n_dup": 106,
+      "n_nondup": 200,
+      "err_dup": 0.014150943396226415,
+      "err_nondup": 0.008
+    },
+    "notumor": {
+      "n_dup": 105,
+      "n_nondup": 300,
+      "err_dup": 0.014285714285714285,
+      "err_nondup": 0.0
+    },
+    "pituitary": {
+      "n_dup": 5,
+      "n_nondup": 295,
+      "err_dup": 0.0,
+      "err_nondup": 0.004067796610169492
+    }
+  },
+  "note": "Fisher exact on pooled predictions was withdrawn: pooling seeds x images violates independence. Unit of replication is the model in (a) and the image in (b)."
 }

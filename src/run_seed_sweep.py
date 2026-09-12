@@ -15,6 +15,7 @@ runs/<tag>/results.json and the script is resumable: rerunning skips any seed
 whose checkpoint already exists.
 """
 import argparse
+import csv
 import json
 import os
 import subprocess
@@ -25,7 +26,7 @@ import numpy as np
 import torch
 from sklearn.metrics import classification_report, roc_auc_score
 
-from data_loader import get_dataloaders
+from data_loader import get_dataloaders, load_group_map
 from evaluate import collect_predictions
 from model import get_model
 from utils import load_checkpoint
@@ -33,7 +34,7 @@ from utils import load_checkpoint
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def train_one(run_dir, data_dir, seed, augment, freeze, epochs):
+def train_one(run_dir, data_dir, seed, augment, freeze, epochs, group_map=None):
     ckpt = os.path.join(run_dir, "tumor_model.pth")
     if os.path.exists(ckpt):
         print(f"  [{os.path.basename(run_dir)}] checkpoint exists, skipping training")
@@ -46,6 +47,8 @@ def train_one(run_dir, data_dir, seed, augment, freeze, epochs):
         cmd.append("--augment")
     if freeze:
         cmd.append("--freeze_backbone")
+    if group_map:
+        cmd += ["--group_map", group_map]
 
     print(f"  running: {' '.join(cmd)}")
     t0 = time.time()
@@ -59,7 +62,7 @@ def train_one(run_dir, data_dir, seed, augment, freeze, epochs):
     return ckpt
 
 
-def evaluate_one(ckpt_path, data_dir, run_dir):
+def evaluate_one(ckpt_path, data_dir, run_dir, group_map=None, fold=None, seed=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ckpt = load_checkpoint(ckpt_path, map_location=device)
     class_names = ckpt["class_names"]
@@ -68,7 +71,28 @@ def evaluate_one(ckpt_path, data_dir, run_dir):
     model = get_model(num_classes=len(class_names), backbone=ckpt["model_name"]).to(device)
     model.load_state_dict(ckpt["model_state"])
 
-    probs, preds, labels, _ = collect_predictions(model, device, test_loader)
+    probs, preds, labels, paths = collect_predictions(model, device, test_loader)
+
+    # Per-image rows. Downstream analyses (pooled CV metrics, patient-level
+    # bootstrap, paired leaky-vs-CV comparison, permutation tests) all need
+    # these; recovering them later means re-running inference over every
+    # checkpoint, so write them once here.
+    gmap = load_group_map(group_map) if isinstance(group_map, str) else (group_map or {})
+    pred_csv = os.path.join(run_dir, "predictions.csv")
+    with open(pred_csv, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["path", "group", "true", "pred", "correct", "confidence",
+                    "fold", "seed"] + [f"p_{c}" for c in class_names])
+        for p, pr, tr, pb in zip(paths, preds, labels, probs):
+            key = os.path.normpath(os.path.relpath(p))
+            # the map is keyed by basename so it survives copies into derived
+            # split directories; see data_loader.load_group_map
+            w.writerow([key.replace("\\", "/"), gmap.get(os.path.basename(p), ""), class_names[tr],
+                        class_names[pr], int(pr == tr), f"{float(pb.max()):.6f}",
+                        "" if fold is None else fold,
+                        "" if seed is None else seed]
+                       + [f"{float(x):.6f}" for x in pb])
+
     rep = classification_report(labels, preds, target_names=class_names,
                                  digits=4, output_dict=True)
     out = {
@@ -96,6 +120,12 @@ def main():
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--augment", action="store_true")
     parser.add_argument("--freeze_backbone", action="store_true")
+    parser.add_argument("--group_map", type=str, default=None,
+                        help="JSON image->group map, forwarded to train.py so the "
+                             "train/validation split is patient-grouped, and used to "
+                             "annotate the per-image predictions file.")
+    parser.add_argument("--fold", type=int, default=None,
+                        help="Fold index to record in the predictions file (CV bookkeeping only).")
     args = parser.parse_args()
 
     base = os.path.join("runs", args.tag)
@@ -111,9 +141,13 @@ def main():
         print(f"\n[{args.tag}/{key}]")
         run_dir = os.path.join(base, key)
         ckpt = train_one(run_dir, args.data_dir, seed, args.augment,
-                          args.freeze_backbone, args.epochs)
-        results[key] = evaluate_one(ckpt, args.data_dir, run_dir)
+                          args.freeze_backbone, args.epochs, group_map=args.group_map)
+        results[key] = evaluate_one(ckpt, args.data_dir, run_dir,
+                                     group_map=args.group_map, fold=args.fold, seed=seed)
         results[key]["seed"] = seed
+        if args.fold is not None:
+            results[key]["fold"] = args.fold
+        results[key]["grouped_val"] = bool(args.group_map)
         print(f"  test_accuracy={results[key]['test_accuracy']:.4f} "
               f"macro_f1={results[key]['macro_f1']:.4f} "
               f"errors={results[key]['n_errors']}/{results[key]['n_test']}")

@@ -26,7 +26,7 @@
   }%
 }
 
-\title{\textbf{Brain Tumor Classification with Pretrained CNNs in PyTorch}}
+\title{\textbf{Complete Patient-Level Leakage in a Widely Used\\ Brain Tumor MRI Benchmark}}
 \author{Jaiveer Bassi \\
 \texttt{jaiveerbassi@yahoo.com}}
 \date{}
@@ -67,7 +67,17 @@ A large share of this literature builds on the T1-weighted contrast-enhanced bra
 
 Several more recent studies broaden the comparison to more backbones or add a second technique on top of transfer learning. \citet{disci2023fine} benchmarked six pretrained architectures, including Xception, ResNet50, and DenseNet121, on the same public four-class brain MRI dataset used in this paper and reported strong classification accuracy through transfer learning and fine-tuning. \citet{vimala2023efficientnet} applied a hybrid deep learning approach combining EfficientNet-based transfer learning with additional classifiers on the Figshare brain tumor dataset and reported high accuracy across glioma, meningioma, and pituitary tumor classes. \citet{srinivas2022deep} compared VGG-16, ResNet-50, and Inception-v3 directly against each other under the same transfer learning setup and found meaningful accuracy differences between backbones on the same data, which is a useful caution against assuming any one pretrained network is the right default choice. \citet{krishnapriya2023pretrained} ran a similar head-to-head comparison across a wider set of pretrained models. \citet{anaya2023optimizing} went further and compared standard transfer learning against data augmentation and a cross-transformer architecture on the same classification and detection tasks, which starts to probe whether the gains in this literature come from the backbone, the augmentation, or the training recipe. \citet{dutta2022multi} is a smaller-scale study in the same vein, applying transfer learning-based deep networks to the multi-class version of the problem. Other work looks at combining models rather than picking one: \citet{chen2024fusion} fused deep features from multiple pretrained CNNs to improve the robustness of multi-type brain tumor classification, reporting accuracy above 95\% on their evaluation set; \citet{sankar2024efficient} built an ensemble of deep learning models specifically for tumor \emph{grade} classification, a related but distinct problem from the type classification addressed here; \citet{gasmi2024enhanced} combined several deep models with a weight-selection technique to merge their predictions; and \citet{alkharaan2026brain} paired an EfficientNet classifier with a U-Net++ segmentation branch so that classification and tumor localization are produced together rather than as separate steps.
 
-Taken together, these results suggest that pretrained CNNs, given careful fine-tuning and reasonable data augmentation, can classify brain tumors with high accuracy across a wide range of backbones and training recipes. What almost none of them examine is the split they are measured on. We are not aware of a study in this literature that checks its evaluation split for duplicated images, or that verifies that the patients in its test set are absent from its training set. Section~\ref{sec:dataset} shows that on the benchmark used here neither property holds, and that the second fails completely. That is the gap this paper addresses: not another architecture, but whether the numbers this literature reports measure what they are taken to measure.
+Taken together, these results suggest that pretrained CNNs, given careful fine-tuning and reasonable data augmentation, can classify brain tumors with high accuracy across a wide range of backbones and training recipes. What almost none of them examine is the split they are measured on. Of the studies surveyed above, none report checking their evaluation split for duplicated images, and none report verifying that the patients in their test set are absent from their training set. We make that observation about their published descriptions, not about what they may have done and not reported.
+
+\subsection{Leakage and Data Quality in Machine Learning Benchmarks}
+\label{sec:leakagelit}
+The failure mode this paper documents is not new, and it would be misleading to present it as such. \citet{kapoor2023leakage} survey machine-learning-based science across 17 fields and find leakage affecting 294 papers, offering a taxonomy in which our case is an instance of the category where the test set is not independent of the training set. \citet{roberts2021common} reviewed 2,212 papers on machine learning for COVID-19 imaging and found none of the 62 they examined in depth to be of clinical use, with reliance on assembled public datasets containing duplicated and non-independent images among the recurring causes. That is the closest precedent for what we report here: a sizable literature accumulating on a benchmark whose construction had not been checked.
+
+In medical imaging specifically, leakage from splitting at the slice level rather than the subject level is well documented. \citet{yagis2021effect} quantified precisely this effect for 2D CNNs on brain MRI, and found that slice-level splitting inflated apparent accuracy by 29 to 55 percentage points across four datasets. \citet{wen2020convolutional} reached a similar conclusion for CNN-based Alzheimer's classification, showing that a large share of reported performance in that literature was attributable to subject-level leakage rather than to the methods being compared. Our results are an instance of the phenomenon these papers describe, on a dataset where, to our knowledge, it had not previously been measured, and the size of the effect we observe (Section~\ref{sec:patientsplit}) is smaller than theirs but of the same character.
+
+Duplicate contamination between splits has also been found in general vision benchmarks. \citet{barz2020train} showed that 3.3\% of the CIFAR-10 test set and 10\% of CIFAR-100 have duplicates in the corresponding training set, and released corrected versions. The 16.5\% we measure here (Section~\ref{sec:contamination}) is larger than either. \citet{oakden2020exploring} audited two widely used public medical imaging datasets by visual inspection and found label quality substantially worse than the accompanying documentation claimed, which is a reminder that a dataset's popularity is not evidence that anyone has checked it.
+
+Against that background, we are careful about what we claim as new. Detecting leakage is not new; quantifying its cost is not new; recommending subject-level splits is not new, and it is already standard practice in datasets such as CheXpert and MIMIC-CXR, which ship patient-level splits by construction. What has not been done for this particular collection, and what makes the measurement possible at all, is the recovery of patient identity for a dataset that had discarded it. The aggregated release contains no patient identifiers, so the leakage was not merely unmeasured but appeared unmeasurable. Sections~\ref{sec:provenance} and~\ref{sec:patientleak} recover those identifiers by content-matching the images back to their source collection, which is what converts a suspicion into a measurement and a corrected split.
 
 \section{Dataset and Audit}
 \label{sec:dataset}
@@ -109,7 +119,7 @@ Total       & 5,712 & 1,311 & 7,023 \\
 
 To match ImageNet-pretrained models such as ResNet-18, every image is resized to $224 \times 224$ and grayscale scans are copied across three channels to look like RGB input. Pixel values are then normalized using ImageNet's mean and standard deviation so the pretrained convolutional filters and batch-normalization statistics behave as intended. This dataset is used widely for benchmarking brain tumor classification \citep{disci2023fine, vimala2023efficientnet}, and its open access and balanced classes make it a practical choice for reproducible research.
 
-That popularity is why the rest of this section is worth the space. Before reporting any accuracy on this benchmark, we audited it, and found two things that anyone using it should know: its train and test splits overlap substantially, and its provenance does not appear to be what it is commonly said to be.
+That popularity is why the rest of this section is worth the space. Before reporting any accuracy on this benchmark, we audited it. Three findings follow, and anyone using this dataset should know all of them: its train and test splits overlap at the level of individual images; they overlap completely at the level of patients; and the class with no recoverable patient structure is substantially redundant against itself. Recovering the provenance, which turned out to be exactly as documented, is what made the second of those measurable.
 
 \subsection{Provenance}
 \label{sec:provenance}
@@ -211,23 +221,23 @@ Each figshare patient contributes multiple slices, so a split made by shuffling 
 
 \begin{table}[H]
 \centering
-\caption{Patient-level leakage in the released split, over the 4,586 tumor images with a recovered patient identifier.}
+\caption{Patient-level leakage in the released split. ``Traced'' counts test images for which a figshare patient identifier was recovered; the leakage column is over those images only.}
 \label{tab:patientleak}
 \small
-\begin{tabular}{lrr}
+\begin{tabular}{lrrr}
 \toprule
-Class & Test images & Patient seen in training \\
+Class & Test images & Traced & Patient in training \\
 \midrule
-glioma      & 287 & 287 (100\%) \\
-meningioma  & 178 & 178 (100\%) \\
-pituitary   & 296 & 296 (100\%) \\
+glioma      & 300 & 287 (96\%) & 287 (100\%) \\
+meningioma  & 306 & 178 (58\%) & 178 (100\%) \\
+pituitary   & 300 & 296 (99\%) & 296 (100\%) \\
 \midrule
-All tumor   & 761 & 761 (100\%) \\
+All tumor   & 906 & 761 (84\%) & 761 (100\%) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-This is not partial contamination that a careful reader might discount. For the tumor classes, the released test split contains no unseen patients at all. Any accuracy measured on it describes how well a model recognizes additional slices of brains it has already studied, which is a substantially easier task than the one the benchmark is taken to represent, and not the task that matters clinically.
+This is not partial contamination that a careful reader might discount. Among the tumor test images whose patient could be identified, the released test split contains no unseen patients at all. Coverage is uneven across classes, and the caveat matters most for meningioma, where only 58\% of test images could be traced: the claim is airtight for the 84\% of tumor test images we can account for, and silent about the rest. Section~\ref{sec:limitations} returns to whether the untraced remainder could be materially different. Any accuracy measured on it describes how well a model recognizes additional slices of brains it has already studied, which is a substantially easier task than the one the benchmark is taken to represent, and not the task that matters clinically.
 
 The deduplication of Section~\ref{sec:dedup} does not touch this. Removing every pixel-identical test image still leaves 756 of 756 matched test images, and all 206 shared patients, with their patient represented in training; the more aggressive near-duplicate removal gives exactly the same 100\%. This is the fact that explains the otherwise puzzling null result in Section~\ref{sec:dedup}, and we return to it there.
 
@@ -393,11 +403,11 @@ Figure~\ref{fig:training_curves} shows loss and accuracy per epoch. The model co
 \end{figure}
 
 \subsection{Test Set Performance}
-The selected checkpoint was evaluated once on the 1,311 held-out test images. Overall accuracy is 99.16\%, corresponding to 1,300 correct predictions and 11 errors. Table~\ref{tab:results} breaks this down by class.
+The selected checkpoint was evaluated once on the 1,311 images of the released test folder. Overall accuracy is 99.16\%, corresponding to 1,300 correct predictions and 11 errors. Table~\ref{tab:results} breaks this down by class.
 
 \begin{table}[H]
 \centering
-\caption{Per-class test set performance on 1,311 held-out images.}
+\caption{Per-class performance on the 1,311 images of the released test folder.}
 \label{tab:results}
 \begin{tabular}{lrrrr}
 \toprule
@@ -466,7 +476,7 @@ Figure~\ref{fig:roc_curves} shows one-vs-rest ROC curves. All four classes have 
 
 \subsection{Seed Variance and Ablations}
 \label{sec:variance}
-A single training run cannot separate a real effect from run-to-run noise, and a single configuration cannot say which parts of the recipe are doing the work. We address both with a 10-seed sweep under the main configuration (augmentation on, full fine-tuning), and a $2\times2$ ablation over augmentation and fine-tuning strategy, each cell averaged over 5 seeds rather than a single run. Every run used the same hyperparameters as Table~\ref{tab:hyper} and was evaluated once on the same untouched test set.
+A single training run cannot separate a real effect from run-to-run noise, and a single configuration cannot say which parts of the recipe are doing the work. We address both with a 10-seed sweep under the main configuration (augmentation on, full fine-tuning), and a $2\times2$ ablation over augmentation and fine-tuning strategy, each cell averaged over 5 seeds rather than a single run. Every run used the same hyperparameters as Table~\ref{tab:hyper} and was evaluated once on the same released test folder.
 
 Table~\ref{tab:seedvar} reports the 10-seed sweep. Test accuracy ranges from 98.93\% to 99.47\%, giving a mean of 99.22\% with a sample standard deviation of 0.16 points. This confirms what the gap between peak and selected validation accuracy already hinted at: at this accuracy level, a difference of a few tenths of a point between two methods, or between this model and a competing report in Table~\ref{tab:comparison}, is within the noise of a single run and should not be read as a real difference without a comparable seed sweep on both sides.
 
@@ -521,7 +531,7 @@ Off & Frozen & 84.99\% $\pm$ 0.31 & 196.8 $\pm$ 4.0 \\
 \label{sec:calibration}
 Section~\ref{sec:results} noted that several errors are made with high softmax confidence, which is a calibration problem rather than an accuracy problem: a well-calibrated model's confidence should track its actual probability of being correct, and a model that is confidently wrong is dangerous to route into a workflow that trusts confidence as a proxy for correctness. We fit a single temperature parameter $T$ \citep{guo2017calibration} on the validation set by minimizing negative log-likelihood, then divide test-set logits by $T$ before softmax. Temperature scaling cannot change which class is predicted, since dividing all logits by a positive constant does not change their ranking, so it can only reshape confidence, not accuracy or the identity of the 11 test errors.
 
-The fitted temperature was $T = 1.38$, meaning the network's raw logits were somewhat overconfident and needed softening. Table~\ref{tab:calibration} reports expected calibration error (ECE) and negative log-likelihood (NLL) before and after scaling, on both the validation set the temperature was fit on and the untouched test set.
+The fitted temperature was $T = 1.38$, meaning the network's raw logits were somewhat overconfident and needed softening. Table~\ref{tab:calibration} reports expected calibration error (ECE) and negative log-likelihood (NLL) before and after scaling, on both the validation set the temperature was fit on and the released test folder.
 
 \begin{table}[H]
 \centering
@@ -566,11 +576,35 @@ Errors             & 10.2 $\pm$ 2.0 & 6.3 $\pm$ 3.3 \\
 \end{tabular}
 \end{table}
 
-Accuracy on the clean split is 99.42\%, which is 0.20 points \emph{higher} than on the contaminated split, not lower. A Welch's $t$-test on the two sets of ten runs gives $t = 1.89$, $p = 0.081$: not significant at the conventional 0.05 threshold, but closer to it than an earlier five-seed-per-condition version of this comparison suggested ($p = 0.65$), and we report that shift honestly rather than stopping at the version that told a cleaner story. The 95\% confidence interval for the deduplicated mean, [99.21\%, 99.64\%], still contains the original mean, and critically the point estimate still moves in the wrong direction for the leakage-inflation hypothesis: if duplicated test images were propping up the accuracy, removing them should lower it, not raise it. With ten runs per condition we can rule out an inflationary effect larger than roughly a third of a point; we cannot rule out a small one in either direction, and a reader who wants a tighter bound should treat $p=0.081$ as an invitation to run more seeds rather than as a settled null. The same qualitative pattern holds without retraining at all: taking the original seed-42 model, trained with all duplicates present, and simply scoring it on the clean test set gives 99.27\%, and on the more aggressive near-duplicate-free test set of 892 images, 99.10\%; the model does not depend on the duplicated images it saw during training.
+Accuracy on the clean split is 99.42\%, which is 0.20 points \emph{higher} than on the contaminated split, not lower. A Welch's $t$-test on the two sets of ten runs gives $t = 1.89$, $p = 0.081$: not significant at the conventional 0.05 threshold, but closer to it than an earlier five-seed-per-condition version of this comparison suggested ($p = 0.65$), and we report that shift honestly rather than stopping at the version that told a cleaner story. The 95\% confidence interval for the deduplicated mean, [99.21\%, 99.64\%], still contains the original mean, and critically the point estimate still moves in the wrong direction for the leakage-inflation hypothesis: if duplicated test images were propping up the accuracy, removing them should lower it, not raise it. A 95\% confidence interval on the difference itself is more informative than the $p$-value, and we report it as primary: $[-0.03, +0.43]$ percentage points. Because the leakage hypothesis predicts that removing duplicates should \emph{lower} accuracy, the relevant bound is the lower limit, and the data are inconsistent with a duplicate-driven inflation larger than about 0.03 points. An earlier version of this work stated this bound as ``roughly a third of a point'', which understated the result by an order of magnitude by reasoning from the $p$-value rather than from the interval. The same qualitative pattern holds without retraining at all: taking the original seed-42 model, trained with all duplicates present, and simply scoring it on the clean test set gives 99.27\%, and on the more aggressive near-duplicate-free test set of 892 images, 99.10\%; the model does not depend on the duplicated images it saw during training.
 
 Two things explain this, and together they close the question.
 
-The first is that the duplicated images were never being memorized in the first place. Pooling predictions from all ten models on the original test set, the 216 duplicated test images are misclassified at 1.389\% (30 errors in 2,160 predictions) against 0.658\% for the other 1,095 (72 in 10,950). Duplicated images are missed \emph{twice as often}, not less often, and the difference is significant (Fisher exact, odds ratio 2.13, $p = 0.0011$). Per-image agreement across seeds points the same way: the duplicated images draw a unanimous prediction from all ten models on 92.6\% of cases against 97.6\% for the rest, so they are also \emph{less} stable run to run. A model coasting on memorized copies would show the opposite on both counts. Whatever the duplicated images are, they are harder than average, and removing them takes out slightly more hard cases than easy ones, which is the most likely reason the clean split scores marginally higher.
+The first is that the duplicated images were never being memorized in the first place. Across all ten models on the released test set, the 216 duplicated test images are misclassified at 1.39\% against 0.66\% for the other 1,095, a ratio of 2.11. Duplicated images are missed \emph{more} often, not less. Per-image agreement across seeds points the same way: the duplicated images draw a unanimous prediction from all ten models on 92.6\% of cases against 97.6\% for the rest, so they are also \emph{less} stable run to run. A model coasting on memorized copies would show the opposite on both counts.
+
+We report the size and direction of that effect rather than a significance claim, because the obvious test is not valid here. Treating the 13,110 pooled predictions as independent trials (ten models scored on the same fixed images, which agree with one another on over 98\% of cases) understates the standard error substantially; an earlier version of this work did exactly that and reported $p = 0.0011$, which we withdraw. Taking the model as the unit of replication, the mean per-model difference is $+0.73$ percentage points with a 95\% confidence interval of $[-0.22, +1.69]$ (paired $t$, $p = 0.12$; Wilcoxon $p = 0.23$). Taking the image as the unit, a permutation test that shuffles the duplicate label across images while keeping each image's ten predictions intact gives $p = 0.060$. Neither reaches conventional significance at this sample size.
+
+The class-stratified view (Table~\ref{tab:dupclass}) is more informative than either test. Glioma contributes no duplicated test images at all and is the hardest class, at 1.47\% error, so it sits entirely in the non-duplicated reference group and drags that group's error rate up. The unadjusted comparison is therefore biased \emph{against} the effect we observe. Within each class that actually contains duplicates, duplicated images are missed more often than non-duplicated ones: 1.42\% against 0.80\% for meningioma, and 1.43\% against 0.00\% for \texttt{notumor}. The argument we need does not depend on a $p$-value: it is enough that the effect is not negative, and it is not negative in any class that can exhibit it.
+
+\begin{table}[H]
+\centering
+\caption{Error rate on the released test set by class and duplication status, pooled over 10 seeds. Glioma has no duplicated test images, so it contributes only to the reference group.}
+\label{tab:dupclass}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{Duplicated} & \multicolumn{2}{c}{Not duplicated} \\
+Class & $n$ & Error & $n$ & Error \\
+\midrule
+glioma      &   0 & --      & 300 & 1.47\% \\
+meningioma  & 106 & 1.42\%  & 200 & 0.80\% \\
+notumor     & 105 & 1.43\%  & 300 & 0.00\% \\
+pituitary   &   5 & 0.00\%  & 295 & 0.41\% \\
+\midrule
+All         & 216 & 1.39\%  & 1,095 & 0.66\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 The second, and the more important, is that deduplication never removed the contamination that matters. Section~\ref{sec:patientleak} shows that 756 of 756 matched test images in the deduplicated split still belong to a patient present in training, exactly as in the original split, and the more aggressive near-duplicate variant gives the same 100\%. Deduplication removes repeated \emph{images} while leaving every repeated \emph{patient} in place. Asking whether it changes accuracy was, in retrospect, asking whether a small subset of redundant images mattered while the far larger source of optimism went untouched. It did not change accuracy because it could not. Section~\ref{sec:patientsplit} runs the experiment that actually removes the leakage.
 
@@ -582,7 +616,7 @@ Per-class F1 on the clean split, averaged over all ten seeds, is 0.9929 $\pm$ 0.
 
 \subsection{A Patient-Disjoint Split}
 \label{sec:patientsplit}
-Sections~\ref{sec:contamination} and~\ref{sec:dedup} establish that removing duplicated images changes nothing, and Section~\ref{sec:patientleak} explains why: every matched test image belongs to a patient the model has already trained on. Recovering the figshare patient identifiers makes it possible, for the first time in this line of work as far as we are aware, to remove that leakage and measure what the pipeline actually does on unseen patients.
+Sections~\ref{sec:contamination} and~\ref{sec:dedup} establish that removing duplicated images changes nothing, and Section~\ref{sec:patientleak} explains why: every matched test image belongs to a patient the model has already trained on. Recovering the figshare patient identifiers makes it possible to remove that leakage and measure what the pipeline actually does on unseen patients. The value of doing so is established by prior work (Section~\ref{sec:leakagelit}); what is specific to this dataset is that the identifiers had to be recovered before the measurement could be made at all.
 
 We built the split with \texttt{build\_patient\_split.py}. The 233 figshare patients are partitioned whole, 188 to training and 45 to test, stratified so each tumor class lands near a 20\% test share. No patient's slices appear on both sides. The 437 tumor images we could not match to a figshare slice are assigned to training only, never to test, so that the test set is guaranteed patient-clean even where provenance is uncertain. The \texttt{notumor} class has no recoverable patient structure at all, so we deduplicate it and split it randomly; this means the four-class result below is only partially patient-disjoint, and we report a tumor-only result alongside it that is fully so. The resulting split holds 5,434 training and 1,295 test images. Everything else, hyperparameters included, is unchanged from Table~\ref{tab:hyper}, and we ran 5 seeds.
 
@@ -607,14 +641,14 @@ Patient-disjoint & 954 & \textbf{93.19\% $\pm$ 1.11} & 65.0 \\
 
 Accuracy falls from 99.22\% to 94.75\%, a drop of 4.47 points ($t = -12.3$, $p = 2.0 \times 10^{-4}$ against the original split; $-4.67$ points and $p = 1.0 \times 10^{-4}$ against the deduplicated one). Stated as error rate rather than accuracy, which is the more honest framing when both numbers are close to the ceiling, the model makes \emph{6.7 times as many mistakes}: 68 errors instead of 10 out of a comparable number of test images. Restricting to the three tumor classes, where the split is fully patient-disjoint and the easy \texttt{notumor} class cannot flatter the average, accuracy is 93.19\% $\pm$ 1.11 and macro F1 is 0.930 $\pm$ 0.011, against 0.992 on the original split.
 
-The per-class picture changes character too. On the tumor-only patient-disjoint split, F1 is 0.9740 $\pm$ 0.0023 for pituitary, 0.9242 $\pm$ 0.0144 for glioma, and 0.8915 $\pm$ 0.0195 for meningioma. Meningioma, which scored 0.985 on the original split, is the class that suffers most, losing nearly ten points. Pituitary tumours, which sit in a stereotyped anatomical location, transfer to new patients far better than the two classes whose appearance varies more between individuals. None of this is visible on the released split, where all three classes sit above 0.98 and look equally solved.
+The per-class picture changes character too. On the tumor-only patient-disjoint split, F1 is 0.9740 $\pm$ 0.0023 for pituitary, 0.9242 $\pm$ 0.0144 for glioma, and 0.8915 $\pm$ 0.0195 for meningioma. Meningioma, which scored 0.987 on the released split, is the class that suffers most, losing nearly ten points. Pituitary tumours, which sit in a stereotyped anatomical location, transfer to new patients far better than the two classes whose appearance varies more between individuals. None of this is visible on the released split, where all three classes sit above 0.98 and look equally solved.
 
 Seed-to-seed spread also grows, from 0.16 points on the original split to 0.80 on the patient-disjoint one, and to 1.11 on the tumor-only subset. This is the variance behaviour one expects from a test set of genuinely independent cases: with only 45 test patients, which patients land in the test fold matters, and a single split of 45 patients carries real sampling uncertainty that 1,295 correlated slices conceal. A more thorough evaluation would use patient-level cross-validation rather than one partition, and we regard our 94.75\% as an estimate with wide error bars rather than a precise figure.
 
 We want to be careful about what this comparison does and does not license. It is a single patient partition, not a cross-validated estimate, and the 45-patient test fold is small. The four-class number mixes a patient-disjoint tumor evaluation with a \texttt{notumor} class that is only deduplicated, so it sits somewhere between the two regimes. And because the test set changes between conditions, this is not a paired comparison. What the result does establish, and establishes with a comfortable margin, is that the near-ceiling accuracy this benchmark is known for depends substantially on evaluating models on patients they were trained on. The honest headline number for this pipeline on unseen patients is in the low nineties, not 99\%.
 
 \subsection{Comparison with Prior Work}
-Table~\ref{tab:comparison} places our result next to recent transfer learning work on brain tumor MRI. We want to be careful about how much weight this carries, and after Sections~\ref{sec:contamination} and~\ref{sec:variance} there are three separate reasons for caution. These studies use different dataset versions, different splits, and in one case only three classes. None of them, as far as we can tell from their published descriptions, check for or control for duplicate contamination in the split they evaluate on. And the seed-to-seed spread we measure, 0.14 to 0.29 points depending on the split, is larger than most of the gaps between the entries in this table, so single-run differences of a few tenths of a point between any of these methods are not interpretable.
+Table~\ref{tab:comparison} places our result next to recent transfer learning work on brain tumor MRI. We want to be careful about how much weight this carries, and after Sections~\ref{sec:contamination} and~\ref{sec:variance} there are three separate reasons for caution. These studies use different dataset versions, different splits, and in one case only three classes. None of them, as far as we can tell from their published descriptions, check for or control for duplicate contamination in the split they evaluate on. And the seed-to-seed spread we measure, 0.16 points on the released split and 0.30 after deduplication, is larger than most of the gaps between the entries in this table, so single-run differences of a few tenths of a point between any of these methods are not interpretable.
 
 The honest reading is that a plain fine-tuned ResNet-18, smaller and cheaper than most of the architectures listed, lands in the same range as heavier models and ensembles, and that this range is where essentially everything lands on a saturated benchmark. That is useful mainly as a floor: if a more complex method cannot beat this baseline by a margin clearly exceeding seed noise, the added complexity is hard to justify.
 
@@ -630,7 +664,7 @@ Work & Model (dataset) & Acc. \\
 \citet{deepak2019brain} & GoogLeNet features (figshare, 3-class) & 98.00\% \\
 \citet{chen2024fusion} & Multi-CNN feature fusion & $>$95\% \\
 \citet{vimala2023efficientnet} & EfficientNetB2 (figshare, 3-class) & 99.06\% \\
-\citet{disci2023fine} & Xception (\textbf{this exact split}) & 98.73\% \\
+\citet{disci2023fine} & Xception (same release) & 98.73\% \\
 This work & ResNet-18 (this exact split) & 99.22\% \\
 \midrule
 This work & ResNet-18, patient-disjoint & see \S\ref{sec:patientsplit} \\
@@ -638,7 +672,7 @@ This work & ResNet-18, patient-disjoint & see \S\ref{sec:patientsplit} \\
 \end{tabular}
 \end{table}
 
-One entry deserves particular attention. \citet{disci2023fine} evaluate on the identical release used here, the same 7,023 images under the same 5,712/1,311 split, and report 98.73\%. Everything established in Section~\ref{sec:dataset} therefore applies to their number without qualification: the same 216 duplicated test images, and the same complete absence of unseen patients. The two studies by \citet{deepak2019brain} and \citet{vimala2023efficientnet} evaluate on the figshare collection directly, which is the source of the patient structure and contains multiple slices per patient, so a slice-level split there carries the same risk unless patients were explicitly separated, which neither reports doing. We make no claim that any of these results are wrong on their own terms. The point is narrower and applies equally to our own headline number: on a benchmark split this way, none of these figures measure generalization to a new patient, and comparing them to three decimal places is not meaningful.
+One entry deserves particular attention. \citet{disci2023fine} report using this release, the same 7,023 images under the same 5,712/1,311 split, and report 98.73\%. We did not inspect their code, so we cannot state with certainty that the folders were used exactly as distributed; their reported split sizes indicate that they were. If so, everything established in Section~\ref{sec:dataset} applies to their number as it does to ours: the same 216 duplicated test images, and the same absence of unseen patients among the traceable ones. The two studies by \citet{deepak2019brain} and \citet{vimala2023efficientnet} evaluate on the figshare collection directly, which is the source of the patient structure and contains multiple slices per patient, so a slice-level split there carries the same risk unless patients were explicitly separated, which neither reports doing. We make no claim that any of these results are wrong on their own terms. The point is narrower and applies equally to our own headline number: on a benchmark split this way, none of these figures measure generalization to a new patient, and comparing them to three decimal places is not meaningful.
 
 \section{Interpretability}
 \label{sec:interpretability}
@@ -653,7 +687,7 @@ A model that predicts well but cannot explain itself is a hard sell in a clinica
 
 In all four examples attention falls on brain tissue rather than on scan borders, background, or the black region outside the skull. The meningioma example is the most convincing, with the hottest region sitting over the enhancing lesion itself, and the pituitary example concentrates near the skull base where the pituitary sits.
 
-We are wary of reading much into this. It is tempting to present it as ruling out source-shortcutting, the classic failure mode where a dataset aggregates sources with different acquisition conventions and the network learns to recognize the source rather than the pathology. Four hand-picked, correctly classified images cannot establish that. The concern is also specifically live here: this dataset does aggregate at least three sources (Section~\ref{sec:provenance}), the \texttt{notumor} class is 44\% redundant against itself (Section~\ref{sec:unique}), and the tumor classes arrive at a different orientation from the source collection, all of which are exactly the conditions under which a network can separate classes by provenance cue rather than by anatomy. Establishing that it does not would need a systematic study over the full test set, ideally with the background masked out to force the decision onto tissue. We did not run one. These four maps are an illustration of what the method produces, not evidence about what the model relies on.
+We are wary of reading much into this. It is tempting to present it as ruling out source-shortcutting, the classic failure mode where a dataset aggregates sources with different acquisition conventions and the network learns to recognize the source rather than the pathology. Four hand-picked, correctly classified images cannot establish that. The concern is also specifically live here: this dataset is documented as aggregating three sources, of which we verified the figshare component (Section~\ref{sec:provenance}), the \texttt{notumor} class is 44\% redundant against itself (Section~\ref{sec:unique}), and the tumor classes arrive at a different orientation from the source collection, all of which are exactly the conditions under which a network can separate classes by provenance cue rather than by anatomy. Establishing that it does not would need a systematic study over the full test set, ideally with the background masked out to force the decision onto tissue. We did not run one. These four maps are an illustration of what the method produces, not evidence about what the model relies on.
 
 That said, we would overstate things by calling these tight localizations. The maps are diffuse, often covering a large fraction of the parenchyma, which is expected given that Grad-CAM at Layer 4 operates on a $7 \times 7$ spatial grid upsampled to full resolution. Grad-CAM is a sanity check on what the model is looking at, not a segmentation, and a plausible-looking heatmap is not evidence that a prediction is correct.
 
@@ -663,17 +697,19 @@ The most important caveat is the one the patient-disjoint experiment only partly
 
 A related limit on that experiment is the \texttt{notumor} class. It has no recoverable patient identifiers, so it cannot be patient-separated, and our patient-disjoint split handles it by deduplication and random assignment. Any residual patient overlap within \texttt{notumor} is therefore unmeasured, which is precisely why Section~\ref{sec:patientsplit} reports the three tumor classes separately: that subset is the number with no asterisk attached. A further 437 tumor images did not match figshare and were assigned to training only, so they cannot contaminate the test set, but they also mean our patient recovery is not exhaustive.
 
-Beyond the split itself, we now have a measure of run-to-run noise (Section~\ref{sec:variance}), and it is not negligible: test accuracy across ten seeds ranged from 98.93\% to 99.47\%, a standard deviation of 0.16 points. That means a reported accuracy anywhere in roughly that range from a single run, ours or anyone else's, is consistent with the same underlying model and training recipe. Table~\ref{tab:comparison}'s comparison against other single-run numbers from the literature should be read with this in mind: at this accuracy level, the differences between competing methods are frequently smaller than the seed-to-seed noise of any one of them, and a fair comparison would need a seed sweep on every method being compared, not just this one.
+Turning from the split to the measurements made on it, we now have an estimate of run-to-run noise (Section~\ref{sec:variance}), and it is not negligible: test accuracy across ten seeds ranged from 98.93\% to 99.47\%, a standard deviation of 0.16 points. That means a reported accuracy anywhere in roughly that range from a single run, ours or anyone else's, is consistent with the same underlying model and training recipe. Table~\ref{tab:comparison}'s comparison against other single-run numbers from the literature should be read with this in mind: at this accuracy level, the differences between competing methods are frequently smaller than the seed-to-seed noise of any one of them, and a fair comparison would need a seed sweep on every method being compared, not just this one.
 
-Second, the model is confidently wrong on a meaningful share of its errors, as Section~\ref{sec:results} describes, and we followed up on this directly with temperature scaling (Section~\ref{sec:calibration}). The result was more mixed than we expected: aggregate test-set calibration barely moved, because it was already good, but the confidence of the specific high-confidence errors dropped substantially, cutting the number of errors above 0.90 confidence from four to one. Deeper uncertainty estimation, for example from deep ensembles or Monte Carlo dropout, was out of scope here and remains a reasonable next step, particularly because a single temperature fit on 1,143 validation images is a coarse instrument compared to per-sample uncertainty.
+Next, the model is confidently wrong on a meaningful share of its errors, as Section~\ref{sec:results} describes, and we followed up on this directly with temperature scaling (Section~\ref{sec:calibration}). The result was more mixed than we expected: aggregate test-set calibration barely moved, because it was already good, but the confidence of the specific high-confidence errors dropped substantially, cutting the number of errors above 0.90 confidence from four to one. Deeper uncertainty estimation, for example from deep ensembles or Monte Carlo dropout, was out of scope here and remains a reasonable next step, particularly because a single temperature fit on 1,143 validation images is a coarse instrument compared to per-sample uncertainty.
 
-Third, the model reads a single 2D slice and ignores the volumetric structure of the scan. The dominant glioma-to-meningioma confusion is plausibly a direct consequence: the cues that separate those two often live in tumor location and extent across slices. A 3D CNN or a model that aggregates predictions across neighboring slices is the natural fix and is likely to help precisely where this model is weakest.
+The model also reads a single 2D slice and ignores the volumetric structure of the scan. The dominant glioma-to-meningioma confusion is plausibly a direct consequence: the cues that separate those two often live in tumor location and extent across slices. A 3D CNN or a model that aggregates predictions across neighboring slices is the natural fix and is likely to help precisely where this model is weakest.
 
-Fourth, the ablation in Section~\ref{sec:variance} averages 5 seeds per cell rather than one, which is enough to say confidently that the 15.65-point gap between full fine-tuning and a frozen backbone is real and that augmentation reverses sign between the two fine-tuning regimes. It is not enough to be fully confident about the smaller full-fine-tuning augmentation effect itself: at 0.56 points with $p = 0.053$, a modestly different seed set could plausibly have landed on the other side of significance. We also did not search over learning rate, batch size, or scheduler settings. A full hyperparameter sweep, repeated across seeds, would make the baseline more informative.
+The ablation in Section~\ref{sec:variance} averages 5 seeds per cell rather than one, which is enough to say confidently that the 15.65-point gap between full fine-tuning and a frozen backbone is real and that augmentation reverses sign between the two fine-tuning regimes. It is not enough to be fully confident about the smaller full-fine-tuning augmentation effect itself: at 0.56 points with $p = 0.053$, a modestly different seed set could plausibly have landed on the other side of significance. We also did not search over learning rate, batch size, or scheduler settings. A full hyperparameter sweep, repeated across seeds, would make the baseline more informative.
 
-Fifth, the deduplication comparison in Section~\ref{sec:dedup} is a null result, and null results bound effects rather than excluding them. It moved from $p = 0.65$ at five seeds per condition to $p = 0.081$ at ten, always in the direction opposite to the leakage-inflation hypothesis. Since Section~\ref{sec:patientleak} shows deduplication leaves patient leakage entirely intact, we now regard that comparison as answering a narrower question than it first appeared to: whether repeated images specifically matter, not whether contamination matters.
+The deduplication comparison in Section~\ref{sec:dedup} is a null result, and null results bound effects rather than excluding them. It moved from $p = 0.65$ at five seeds per condition to $p = 0.081$ at ten, always in the direction opposite to the leakage-inflation hypothesis. Since Section~\ref{sec:patientleak} shows deduplication leaves patient leakage entirely intact, we now regard that comparison as answering a narrower question than it first appeared to: whether repeated images specifically matter, not whether contamination matters.
 
-Sixth, our provenance work reached the wrong answer before it reached the right one, and the reason generalizes. Content matching between an aggregated dataset and a candidate source is only as good as its negative control. Ours was a pair of identical files, which certified nothing about robustness to the transformations that actually occur, and the resulting false negative survived until we constructed a control that simulated the release pipeline. Any study attempting this kind of trace should calibrate against transformed matches, not identical ones. We also tested only the figshare component: the SARTAJ and Br35H attributions remain unverified, and 437 tumor images (8.7\%) did not match at threshold for reasons we have not diagnosed.
+Finally on method, our provenance work reached the wrong answer before it reached the right one, and the reason generalizes. Content matching between an aggregated dataset and a candidate source is only as good as its negative control. Ours was a pair of identical files, which certified nothing about robustness to the transformations that actually occur, and the resulting false negative survived until we constructed a control that simulated the release pipeline. Any study attempting this kind of trace should calibrate against transformed matches, not identical ones. We also tested only the figshare component: the SARTAJ and Br35H attributions remain unverified, and 437 tumor images (8.7\%) did not match at threshold for reasons we have not diagnosed.
+
+A confound specific to the per-class results deserves naming. Only 58\% of meningioma test images could be traced to a patient, against 96\% and 99\% for glioma and pituitary, and the 437 untraced tumor images are assigned to training in every fold. Meningioma is also the class that degrades most on the patient-disjoint split. We cannot fully separate these: some of that degradation may reflect a distribution difference between the traced and untraced subpopulations rather than the removal of patient leakage. Disambiguating it would require establishing the provenance of the untraced images, which we were not able to do.
 
 Finally, this system only classifies, and it assumes it is handed a usable, roughly centered slice. A real diagnostic tool would need segmentation, automated quality control for artifacts and off-target slices, and integration with patient history to resemble how a radiologist actually works a case.
 
@@ -682,9 +718,35 @@ Automated tumor classification raises real ethical questions that should not be 
 
 Training data should be collected with clear patient consent and proper anonymization, and datasets should be as demographically diverse as the populations a model will actually serve. A model validated only on data like the data in this paper should not be presented as validated for general clinical use.
 
-The audit in Section~\ref{sec:dataset} raises a related concern about benchmark hygiene that we think has an ethical dimension in a medical context. A dataset whose splits overlap by 16.5\%, whose provenance cannot be verified, and whose patient structure is unrecoverable is a weak foundation for claims about diagnostic performance, even when, as here, the overlap turns out not to change the headline number. Published accuracies on such a benchmark can acquire an authority they have not earned, and in a clinical setting that authority is exactly what is dangerous. We would encourage anyone building on this dataset to run the audit tooling released here on their own copy before reporting results, and to say plainly which split they used.
+The audit in Section~\ref{sec:dataset} raises a related concern about benchmark hygiene that we think has an ethical dimension in a medical context. A dataset whose splits share 16.5\% of their images outright, and whose every traceable test patient also appears in training, is a weak foundation for claims about diagnostic performance. Removing the duplicated images leaves the headline number essentially unchanged; removing the shared patients costs it several points (Section~\ref{sec:patientsplit}). The defect that was easiest to see was not the one that mattered. Published accuracies on such a benchmark can acquire an authority they have not earned, and in a clinical setting that authority is exactly what is dangerous. We would encourage anyone building on this dataset to run the audit tooling released here on their own copy before reporting results, and to say plainly which split they used.
 
 We release this code openly so the methodology can be checked, challenged, and improved by others, which we think is a minimum bar for work aimed at clinical settings.
+
+
+\section{Conclusion}
+\label{sec:conclusion}
+A ResNet-18 fine-tuned on this benchmark scores 99.22\% on the released split. The same pipeline, trained and evaluated identically but on a split where no patient appears on both sides, scores several points lower, and the gap is not attributable to the duplicated images that are the most visible defect. The released split cannot measure generalization to a new patient, because for the tumor classes it contains no new patients: every test image we could trace belongs to someone the model has already seen.
+
+We want to be careful about the scope of that claim. It is a statement about one dataset, evaluated with one architecture, on one set of cross-validated patient partitions. It is not a claim that the published results built on this benchmark are wrong on their own terms, and it applies to our own headline number exactly as it applies to anyone else's. Nor is the underlying phenomenon novel: slice-level leakage in medical imaging is well documented (Section~\ref{sec:leakagelit}). What was specific to this collection is that the patient identifiers had been discarded during aggregation, which made the leakage appear unmeasurable and left it unmeasured.
+
+\paragraph{Recommended protocol for this dataset.} Rather than leave this as a complaint, we release what is needed to avoid the problem. \texttt{figshare\_patient\_map.json} gives a recovered patient identifier for 4,586 of the 5,023 tumor images, and \texttt{cv\_folds.json} gives a fixed five-fold patient-disjoint partition with every patient assigned to exactly one test fold. We suggest that work using this dataset (i) report which split was used, (ii) evaluate on patient-disjoint folds rather than the released folders, and (iii) group the train/validation split by patient as well, since model selection is corrupted by leakage just as evaluation is. Both artifacts are derived metadata rather than redistributed images, so they can be used without reference to the licensing of the underlying collections.
+
+\section*{Code and Data Availability}
+All code, the recovered patient map, the fold assignment, per-run metrics, and per-image predictions are available at \url{https://github.com/imjbassi/Brain-Tumor-MRI-Classification}. The repository contains the audit tooling (\texttt{audit\_leakage.py}, \texttt{match\_figshare.py}, \texttt{provenance\_sensitivity.py}, \texttt{count\_unique.py}), the split constructors (\texttt{build\_clean\_split.py}, \texttt{build\_cv\_folds.py}, \texttt{build\_patient\_split.py}), and the training and evaluation pipeline, with pinned dependency versions.
+
+The image data is third-party and is not redistributed here. The aggregated four-class collection is available from Mendeley Data \citep{ghaffar2020dataset} and mirrored on Kaggle \citep{nickparvar2021dataset}; the figshare collection used for provenance recovery is \citet{cheng2015enhanced}, released under CC BY 4.0. We release only derived metadata (patient identifiers, fold assignments, file manifests) together with scripts that rebuild every split from a local copy of the source data.
+
+\section*{Ethics Statement}
+This work is a secondary analysis of publicly available, de-identified imaging data and did not require institutional review board approval. Consent for the original acquisitions is a matter for the source collections and is described in their respective publications. No patient-identifiable information was accessed, recovered, or released: the ``patient identifiers'' recovered here are the arbitrary within-dataset labels distributed by the source collection, and they permit grouping slices by subject without revealing anything about who that subject is.
+
+\section*{Use of AI Assistance}
+An AI coding assistant (Anthropic Claude) was used substantially throughout this work: to write and revise analysis code, to run experiments, to draft and edit the manuscript, and to review intermediate results. All experiments were executed on the author's hardware and every reported number is produced by the released scripts and recorded in machine-readable artifacts in the repository. The author verified the analyses, checked the cited literature against the primary sources, and takes full responsibility for the content of this paper, including any remaining errors.
+
+\section*{Competing Interests}
+The author declares no competing interests. This paper discusses limitations of a publicly released dataset and comments on published results that evaluate on it; the author has no affiliation with, or interest in, the parties responsible for either.
+
+\section*{Funding}
+This research received no specific grant from any funding agency in the public, commercial, or not-for-profit sectors. All computation was performed on consumer hardware owned by the author.
 
 \begin{thebibliography}{9}
 
@@ -797,6 +859,37 @@ Brain Tumor MRI Dataset.
 Guo, C., Pleiss, G., Sun, Y., \& Weinberger, K. Q. (2017).
 On calibration of modern neural networks.
 \textit{Proceedings of the 34th International Conference on Machine Learning (ICML)}, 1321--1330.
+
+
+\bibitem[Yagis et al., 2021]{yagis2021effect}
+Yagis, E., Atnafu, S. W., Garc\'ia Seco de Herrera, A., Marzi, C., Scheda, R., Giannelli, M., Tessa, C., Villain, L., \& Citi, L. (2021).
+Effect of data leakage in brain MRI classification using 2D convolutional neural networks.
+\textit{Scientific Reports}, 11. \url{https://doi.org/10.1038/s41598-021-01681-w}
+
+\bibitem[Kapoor and Narayanan, 2023]{kapoor2023leakage}
+Kapoor, S., \& Narayanan, A. (2023).
+Leakage and the reproducibility crisis in machine-learning-based science.
+\textit{Patterns}, 4(9), 100804. \url{https://doi.org/10.1016/j.patter.2023.100804}
+
+\bibitem[Roberts et al., 2021]{roberts2021common}
+Roberts, M., Driggs, D., Thorpe, M., Gilbey, J., Yeung, M., Ursprung, S., Aviles-Rivero, A. I., Etmann, C., McCague, C., Beer, L., Weir-McCall, J. R., Teng, Z., Gkrania-Klotsas, E., Rudd, J. H. F., Sala, E., \& Sch\"onlieb, C.-B. (2021).
+Common pitfalls and recommendations for using machine learning to detect and prognosticate for COVID-19 using chest radiographs and CT scans.
+\textit{Nature Machine Intelligence}, 3, 199--217.
+
+\bibitem[Wen et al., 2020]{wen2020convolutional}
+Wen, J., Thibeau-Sutre, E., Diaz-Melo, M., Samper-Gonz\'alez, J., Routier, A., Bottani, S., Dormont, D., Durrleman, S., Burgos, N., \& Colliot, O. (2020).
+Convolutional neural networks for classification of Alzheimer's disease: Overview and reproducible evaluation.
+\textit{Medical Image Analysis}, 63, 101694. \url{https://doi.org/10.1016/j.media.2020.101694}
+
+\bibitem[Barz and Denzler, 2020]{barz2020train}
+Barz, B., \& Denzler, J. (2020).
+Do we train on test data? Purging CIFAR of near-duplicates.
+\textit{Journal of Imaging}, 6(6), 41. \url{https://doi.org/10.3390/jimaging6060041}
+
+\bibitem[Oakden-Rayner, 2020]{oakden2020exploring}
+Oakden-Rayner, L. (2020).
+Exploring large-scale public medical image datasets.
+\textit{Academic Radiology}, 27(1), 106--112. \url{https://doi.org/10.1016/j.acra.2019.10.006}
 
 \end{thebibliography}
 

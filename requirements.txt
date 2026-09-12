@@ -1,6 +1,23 @@
-torch
-torchvision
-Pillow
-numpy
-matplotlib
-scikit-learn
+# Exact versions used for every result reported in the paper.
+# Python 3.14.2, Windows 11, NVIDIA RTX 4070 (CUDA 12.6).
+#
+# torch/torchvision carry a +cu126 local version tag and are not on PyPI under
+# that tag. Install them from the PyTorch index first:
+#   pip install torch==2.14.0 torchvision==0.29.0 --index-url https://download.pytorch.org/whl/cu126
+# then:
+#   pip install -r requirements.txt
+#
+# For CPU-only reproduction, drop the "+cu126" suffixes and omit the extra
+# index; results are identical up to nondeterminism in cuDNN kernels.
+
+torch==2.14.0+cu126
+torchvision==0.29.0+cu126
+numpy==2.4.2
+scipy==1.17.0
+scikit-learn==1.9.0
+matplotlib==3.10.8
+Pillow==12.1.1
+
+# Only needed to read the figshare .mat sources for the provenance analysis
+# (src/match_figshare.py, src/build_cv_folds.py).
+h5py==3.16.0

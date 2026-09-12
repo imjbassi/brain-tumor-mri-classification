@@ -1,0 +1,25 @@
+{
+  "mode": "cv_fold",
+  "fold_idx": 1,
+  "n_folds": 5,
+  "counts": {
+    "Training": {
+      "glioma": 1314,
+      "meningioma": 1382,
+      "notumor": 1365,
+      "pituitary": 1413
+    },
+    "Testing": {
+      "glioma": 307,
+      "meningioma": 263,
+      "notumor": 341,
+      "pituitary": 344
+    }
+  },
+  "n_train_groups": 1079,
+  "n_test_groups": 267,
+  "group_overlap": 0,
+  "pixel_duplicates_across_boundary": 0,
+  "notumor_exact_duplicates_dropped": 294,
+  "folds_file": "cv_folds.json"
+}
