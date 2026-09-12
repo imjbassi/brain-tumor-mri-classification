@@ -1,0 +1,26 @@
+{
+  "mode": "random_cv_control",
+  "fold_idx": 1,
+  "assignment_seed": 1234,
+  "matched_test_counts": {
+    "glioma": 307,
+    "meningioma": 263,
+    "notumor": 341,
+    "pituitary": 344
+  },
+  "counts": {
+    "Training": {
+      "glioma": 1314,
+      "meningioma": 1382,
+      "notumor": 1365,
+      "pituitary": 1413
+    },
+    "Testing": {
+      "glioma": 307,
+      "meningioma": 263,
+      "notumor": 341,
+      "pituitary": 344
+    }
+  },
+  "pixel_duplicates_across_boundary": 0
+}

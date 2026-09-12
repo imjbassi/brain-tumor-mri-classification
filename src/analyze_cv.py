@@ -33,12 +33,16 @@ def read_predictions(path):
         return list(csv.DictReader(f))
 
 
-def load_cv(runs_dir, n_folds):
-    """Returns {seed: {basename: row}} across all folds, plus fold membership."""
+def load_cv(runs_dir, n_folds, prefix="cv_fold"):
+    """Returns {seed: {basename: row}} across all folds, plus fold membership.
+
+    `prefix` selects the arm: "cv_fold" for the patient-disjoint folds,
+    "rand_fold" for the matched random-split control.
+    """
     by_seed = defaultdict(dict)
     fold_of = {}
     for k in range(n_folds):
-        for pred_file in sorted(glob.glob(os.path.join(runs_dir, f"cv_fold{k}", "seed*", "predictions.csv"))):
+        for pred_file in sorted(glob.glob(os.path.join(runs_dir, f"{prefix}{k}", "seed*", "predictions.csv"))):
             seed = os.path.basename(os.path.dirname(pred_file)).replace("seed", "")
             for r in read_predictions(pred_file):
                 base = os.path.basename(r["path"])
@@ -116,9 +120,15 @@ def main():
                         help="Used to restrict the paired comparison to images with a "
                              "genuinely recovered patient identifier.")
     parser.add_argument("--out", type=str, default="paper/figures/cv_analysis.json")
+    parser.add_argument("--prefix", type=str, default="cv_fold",
+                        help="Fold directory prefix. 'cv_fold' is the patient-disjoint "
+                             "arm; 'rand_fold' is the matched random-split control.")
+    parser.add_argument("--skip_paired", action="store_true",
+                        help="Skip the released-split paired comparison, which is "
+                             "only meaningful for the patient-disjoint arm.")
     args = parser.parse_args()
 
-    by_seed, fold_of = load_cv(args.runs_dir, args.n_folds)
+    by_seed, fold_of = load_cv(args.runs_dir, args.n_folds, args.prefix)
     if not by_seed:
         raise SystemExit("no CV predictions found; has the sweep finished?")
     seeds = sorted(by_seed, key=lambda s: int(s))
@@ -174,7 +184,7 @@ def main():
     # ---- variance decomposition --------------------------------------------
     acc_fs = {}
     for k in range(args.n_folds):
-        rj = os.path.join(args.runs_dir, f"cv_fold{k}", "results.json")
+        rj = os.path.join(args.runs_dir, f"{args.prefix}{k}", "results.json")
         if not os.path.exists(rj):
             continue
         d = json.load(open(rj))
@@ -194,7 +204,8 @@ def main():
               f"{args.n_folds*len(seeds)} fold/seed cells present)")
 
     # ---- paired comparison against the released-split models ---------------
-    leaky_files = sorted(glob.glob(os.path.join(args.leaky_dir, "seed*", "predictions.csv")))
+    leaky_files = [] if args.skip_paired else sorted(
+        glob.glob(os.path.join(args.leaky_dir, "seed*", "predictions.csv")))
     if leaky_files:
         print("\n--- paired comparison on identical images ---")
         leaky = {}
