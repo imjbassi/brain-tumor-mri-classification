@@ -112,6 +112,9 @@ def main():
     parser.add_argument("--leaky_dir", type=str, default="runs/leaky",
                         help="Released-split runs, for the paired comparison.")
     parser.add_argument("--n_boot", type=int, default=10000)
+    parser.add_argument("--patient_map", type=str, default="figshare_patient_map.json",
+                        help="Used to restrict the paired comparison to images with a "
+                             "genuinely recovered patient identifier.")
     parser.add_argument("--out", type=str, default="paper/figures/cv_analysis.json")
     args = parser.parse_args()
 
@@ -201,6 +204,20 @@ def main():
         common = set.intersection(
             set().union(*[set(v) for v in leaky.values()]),
             *[set(by_seed[s]) for s in seeds])
+
+        # Restrict to images with a genuinely recovered PATIENT identifier.
+        # Without this filter the set also picks up notumor images, which have
+        # no patient and are grouped only by near-duplicate cluster, so the
+        # contrast "patient seen in training vs not" would not be true of them.
+        if args.patient_map and os.path.exists(args.patient_map):
+            pmap = json.load(open(args.patient_map))
+            traced = {os.path.basename(k) for k in pmap}
+            before = len(common)
+            common = common & traced
+            print(f"  restricted to images with a recovered patient ID: "
+                  f"{len(common)} of {before} "
+                  f"({before - len(common)} dropped: no patient identifier)")
+
         common = sorted(common)
         print(f"  images evaluated under both regimes: {len(common)}")
         if common:

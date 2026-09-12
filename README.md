@@ -1,19 +1,80 @@
-# Brain Tumor MRI Classification with PyTorch
+# Brain Tumor MRI Benchmark Audit
 
-This project implements a brain tumor classifier using a pretrained ResNet-18 model in PyTorch. It classifies T1-weighted MRI images into four categories: **glioma**, **meningioma**, **pituitary tumor**, and **no tumor**. The pipeline includes data loading, preprocessing, training, evaluation, and interpretability (Grad-CAM).
+[![DOI](https://zenodo.org/badge/DOI/PLACEHOLDER_ZENODO_DOI.svg)](https://doi.org/PLACEHOLDER_ZENODO_DOI)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-On the released split of the Mendeley/Kaggle brain tumor dataset, this pipeline reaches **99.22% ± 0.16%** accuracy across ten seeds.
+An audit of a widely used four-class brain tumor MRI benchmark, plus the
+pipeline used to evaluate it. The headline result of the audit is that the
+benchmark's released split **cannot measure generalization to a new patient**,
+and that the ~99% accuracies reported on it are substantially an artifact of
+that.
 
-**That number does not mean what it appears to mean.** This repository also contains an audit of the benchmark, and the audit found that the released split has **complete patient-level leakage**: every test image with a recoverable patient identifier (761 of 761, across all three tumor classes) comes from a patient that also appears in the training set. Accuracy measured on that split describes recognizing more slices of brains the model already studied, not generalizing to a new patient.
+## What the audit found
 
-The audit also found 16.5% of test images are pixel-identical to a training image, and that the 7,023 advertised files contain 6,597 distinct images. Deduplication alone does **not** change accuracy, because it removes repeated images while leaving every repeated patient in place.
+| Finding | Detail |
+|---|---|
+| **Complete patient-level leakage** | 206 of 233 patients appear in both released folders. Of the 906 tumor test images, 761 (84%) could be traced to a patient, and **every one of them** belongs to a patient the model trains on. |
+| **Duplicate contamination** | 216 test images (16.5%) are pixel-identical to a training image; 103 are byte-identical files. |
+| **Redundancy** | The 7,023 advertised files contain only 6,597 distinct images (5,994 after near-duplicate clustering). The `notumor` class is 44% redundant against itself. |
+| **Deduplication does not fix it** | Removing duplicates leaves accuracy unchanged (99.22% → 99.42%; 95% CI on the difference [−0.03, +0.43] pts), because it leaves every repeated patient in place. |
 
-We recover patient identifiers by matching against the original [figshare dataset](https://doi.org/10.6084/m9.figshare.1512427) of Cheng et al., and rebuild a patient-disjoint split. On that split accuracy falls to **94.75% ± 0.80%**, and to **93.19%** on the three tumor classes alone: a 6.7-fold increase in error rate. That is the honest number for this pipeline on unseen patients. Full methodology, the corrected matching procedure, and the re-evaluation are in [`paper/main.pdf`](paper/main.pdf).
+## What it costs
+
+| Split | Test n | Accuracy |
+|---|---|---|
+| Released | 1,311 | 99.22% ± 0.16 |
+| Deduplicated | 1,092 | 99.42% ± 0.30 |
+| **Patient-disjoint (5-fold CV)** | 6,292 | **95.19%** |
+| **— tumor classes only** | 4,586 | **93.68%** |
+
+In a paired comparison on the 761 images scored under both regimes, with
+identical images, labels, architecture and hyperparameters: **99.12% when the
+patient appeared in training, 93.60% when it did not — a 7.3× increase in
+error rate.**
+
+Partition choice contributes **2.6× the standard deviation** that random
+seeding does (σ_partition = 2.18 pts vs σ_seed = 0.83 pts), and per-fold
+accuracy ranges from 92.3% to 98.2%. Single-split accuracies on this
+benchmark carry far wider error bars than are usually reported.
+
+Full methodology, the corrected provenance matching, and the re-evaluation
+are in [`paper/main.pdf`](paper/main.pdf).
+
+## Using the corrected split
+
+If you work with this dataset, the two artifacts worth taking are:
+
+- **`figshare_patient_map.json`** — a recovered patient identifier for 4,586
+  of the 5,023 tumor images.
+- **`cv_folds.json`** — a fixed five-fold patient-disjoint partition, every
+  patient in exactly one test fold.
+
+Both are derived metadata, not redistributed images, so they can be used
+without reference to the licensing of the underlying collections.
+
+```bash
+python src/build_cv_folds.py --data_dir ./data --map figshare_patient_map.json --n_folds 5
+python src/build_patient_split.py --data_dir ./data --folds cv_folds.json --fold_idx 0 --out_dir ./data_cv_fold0
+python src/run_seed_sweep.py --data_dir ./data_cv_fold0 --tag cv_fold0 --augment --seeds 42 0 1 --group_map group_map.json --fold 0
+python src/analyze_cv.py --runs_dir runs --n_folds 5
+```
+
+**Group your validation split too.** This project originally did not, and on
+the first patient-disjoint fold 80.3% of validation images turned out to
+belong to a patient also in training — so checkpoint selection, the LR
+schedule, early stopping and temperature calibration were all being chosen
+against the same contamination. Pass `--group_map` to `train.py`.
 
 ## Preprint
 
+An earlier version of this work was posted as:
+
 **Bassi, J.** (2025). *Brain Tumor Classification with Pretrained CNNs in PyTorch*.
 [DOI: 10.13140/RG.2.2.21638.28484](https://doi.org/10.13140/RG.2.2.21638.28484)
+
+**That version is superseded.** It predates the dataset audit and reports the
+released-split accuracy as a result rather than as a measurement artifact.
+Cite `paper/main.pdf` in this repository instead.
 
 ---
 

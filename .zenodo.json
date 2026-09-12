@@ -1,0 +1,44 @@
+{
+  "title": "Brain Tumor MRI Benchmark Audit: patient-identifier recovery, leakage analysis, and a patient-disjoint split",
+  "description": "<p>Audit tooling and corrected evaluation splits for a widely used four-class brain tumor MRI benchmark (7,023 images; Mendeley/Kaggle mirror of a figshare-derived collection).</p><p>This deposit contains:</p><ul><li><strong>figshare_patient_map.json</strong> &mdash; a recovered figshare patient identifier for 4,586 of the 5,023 tumor images, obtained by crop-normalized, orientation-invariant content matching against the source collection. The aggregated release discards patient identity, which is why the leakage it contains had not previously been measurable.</li><li><strong>cv_folds.json</strong> &mdash; a fixed five-fold patient-disjoint partition in which every patient is assigned to exactly one test fold, plus near-duplicate cluster grouping for the no-tumor class, which has no recoverable patient structure.</li><li><strong>Audit tooling</strong> &mdash; duplicate and near-duplicate detection, provenance matching with a calibrated sensitivity control, redundancy counting, and split construction.</li><li><strong>Pipeline</strong> &mdash; training, evaluation, calibration and interpretability code, with pinned dependency versions and per-run metrics.</li></ul><p>Key findings: 206 of 233 patients appear in both released folders; every traceable tumor test image belongs to a patient also present in training; 216 test images (16.5%) are pixel-identical to a training image; and the 7,023 files contain only 6,597 distinct images. Under patient-disjoint cross-validation, accuracy falls from 99.22% to 95.19% (93.68% on tumor classes alone).</p><p>Only derived metadata is redistributed here. The underlying images are third-party and must be obtained from their original sources.</p>",
+  "upload_type": "software",
+  "license": "MIT",
+  "access_right": "open",
+  "creators": [
+    {
+      "name": "Bassi, Jaiveer",
+      "affiliation": "Independent Researcher, Phoenix, Arizona, USA",
+      "orcid": "0009-0006-3633-3220"
+    }
+  ],
+  "keywords": [
+    "data leakage",
+    "dataset audit",
+    "patient-level splitting",
+    "brain tumor MRI",
+    "benchmark contamination",
+    "reproducibility",
+    "transfer learning",
+    "medical image classification"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.1371/journal.pone.0140381",
+      "relation": "isDerivedFrom",
+      "resource_type": "dataset",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "10.6084/m9.figshare.1512427",
+      "relation": "isDerivedFrom",
+      "resource_type": "dataset",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "10.17632/w4sw3s9f59.1",
+      "relation": "isDerivedFrom",
+      "resource_type": "dataset",
+      "scheme": "doi"
+    }
+  ]
+}

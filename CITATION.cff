@@ -1,0 +1,55 @@
+cff-version: 1.2.0
+message: "If you use this software, the recovered patient map, or the patient-disjoint split, please cite it as below."
+title: "Brain Tumor MRI Benchmark Audit: patient-identifier recovery, leakage analysis, and a patient-disjoint split"
+abstract: >-
+  Audit tooling and corrected evaluation splits for a widely used four-class
+  brain tumor MRI benchmark. Recovers figshare patient identifiers for the
+  aggregated release by crop-normalized, orientation-invariant content
+  matching; documents complete patient-level leakage and 16.5% duplicate
+  contamination between the released train and test folders; and provides a
+  fixed five-fold patient-disjoint cross-validation partition together with
+  the full training, evaluation and interpretability pipeline.
+type: software
+authors:
+  - given-names: Jaiveer
+    family-names: Bassi
+    email: jbassi450@gmail.com
+    orcid: "https://orcid.org/0009-0006-3633-3220"
+    affiliation: "Independent Researcher, Phoenix, Arizona, USA"
+repository-code: "https://github.com/imjbassi/Brain-Tumor-MRI-Classification"
+license: MIT
+keywords:
+  - data leakage
+  - dataset audit
+  - patient-level splitting
+  - brain tumor MRI
+  - benchmark contamination
+  - reproducibility
+  - transfer learning
+  - medical image classification
+references:
+  - type: article
+    title: "Enhanced Performance of Brain Tumor Classification via Tumor Region Augmentation and Partition"
+    authors:
+      - family-names: Cheng
+        given-names: Jun
+      - family-names: Huang
+        given-names: Wei
+      - family-names: Cao
+        given-names: Shuangliang
+      - family-names: Yang
+        given-names: Ru
+      - family-names: Yang
+        given-names: Wei
+      - family-names: Yun
+        given-names: Zhaoqiang
+      - family-names: Wang
+        given-names: Zhijian
+      - family-names: Feng
+        given-names: Qianjin
+    journal: "PLOS ONE"
+    volume: 10
+    issue: 10
+    year: 2015
+    doi: 10.1371/journal.pone.0140381
+    notes: "Source collection from which patient identifiers were recovered."

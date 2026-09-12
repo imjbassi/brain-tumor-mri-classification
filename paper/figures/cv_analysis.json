@@ -197,9 +197,9 @@
     "grand_mean": 0.951876343170141
   },
   "paired": {
-    "n_images": 1061,
-    "acc_patient_seen": 0.9936852026390198,
-    "acc_patient_unseen": 0.9541313226515866,
-    "error_ratio": 7.26368159203983
+    "n_images": 761,
+    "acc_patient_seen": 0.9911957950065704,
+    "acc_patient_unseen": 0.9360490582566799,
+    "error_ratio": 7.263681592039867
   }
 }
