@@ -63,7 +63,7 @@ The contribution of this paper is not a new architecture. It is an audit of a wi
 \item We document duplicate contamination as a separate, smaller defect: 16.5\% of test images are pixel-identical to a training image (Section~\ref{sec:contamination}), and the dataset's 7,023 files contain 6,597 distinct images (Section~\ref{sec:unique}).
 \item We re-evaluate the same pipeline under five-fold patient-disjoint cross-validation built from the recovered identifiers (Section~\ref{sec:patientsplit}). Accuracy falls from 99.22\% to 95.19\%, and to 93.68\% on the tumor classes alone; a paired comparison on the same 761 traceable images gives a 7.3-fold increase in error rate. This is the paper's main experimental result.
 \item We show that deduplication alone does not change accuracy, and explain why: it removes repeated images while leaving every repeated patient in place (Sections~\ref{sec:dedup} and~\ref{sec:patientleak}). We also show the duplicated images are misclassified twice as often as the rest, so they were never being memorized.
-\item We report the baseline completely rather than as a headline number: per-class metrics, confusion matrix, ROC-AUC, ten-seed variance, a five-seed-per-cell ablation, and temperature-scaled calibration (Sections~\ref{sec:results} to~\ref{sec:calibration}).
+\item We report the baseline completely rather than as a headline number: per-class metrics, confusion matrix, ROC-AUC, ten-seed variance, a five-seed-per-cell ablation, and temperature-scaled calibration (Section~\ref{sec:baseline} and Appendix~\ref{app:baseline}).
 \end{itemize}
 
 A note on how to read the accuracy figures in this paper. Where we quote a number near 99\%, it is a measurement on the released split, which we show does not measure generalization to an unseen patient. Those figures appear so that others can reproduce them and so that the split comparisons have a baseline, not as a claim about performance. Where we want to state what this pipeline actually achieves, we use the patient-disjoint figure of Section~\ref{sec:patientsplit}, and neither number is a claim of clinical readiness.
@@ -278,7 +278,7 @@ The dataset advertises 7,023 images but contains 6,597 distinct ones, and by the
 
 \section{Methodology}
 \label{sec:method}
-Figure~\ref{fig:pipeline} outlines the full pipeline. An input MRI scan is preprocessed to match the format ResNet-18 expects, passed through the pretrained backbone and a newly initialized four-class head, and converted to class probabilities. The resulting predictions feed both the quantitative evaluation and the Grad-CAM interpretability step described in Sections~\ref{sec:results} and~\ref{sec:interpretability}.
+Figure~\ref{fig:pipeline} outlines the full pipeline. An input MRI scan is preprocessed to match the format ResNet-18 expects, passed through the pretrained backbone and a newly initialized four-class head, and converted to class probabilities. The resulting predictions feed both the quantitative evaluation and the Grad-CAM interpretability step described in Sections~\ref{sec:patientsplit} and~\ref{sec:interpretability}.
 
 \begin{figure*}[t]
 \centering
@@ -303,7 +303,7 @@ Figure~\ref{fig:pipeline} outlines the full pipeline. An input MRI scan is prepr
 \node[box, below=8mm of backbone, fill=orange!10, minimum width=3.6cm] (evalbox) {Evaluation \& Interpretability\\confusion matrix, ROC-AUC, Grad-CAM};
 \draw[arr] (pred.south) -- ++(0,-4mm) -| (evalbox.north);
 \end{tikzpicture}
-\caption{End-to-end pipeline. Preprocessing, the ResNet-18 backbone, and the new classification head are described in Sections~\ref{sec:preprocessing} and~\ref{sec:architecture}; evaluation and interpretability are described in Sections~\ref{sec:results} and~\ref{sec:interpretability}.}
+\caption{End-to-end pipeline. Preprocessing, the ResNet-18 backbone, and the new classification head are described in Sections~\ref{sec:preprocessing} and~\ref{sec:architecture}; evaluation and interpretability are described in Sections~\ref{sec:patientsplit} and~\ref{sec:interpretability}.}
 \label{fig:pipeline}
 \end{figure*}
 
@@ -399,18 +399,131 @@ Random seed & 42 \\
 \end{tabular}
 \end{table}
 
-\section{Results}
-\label{sec:results}
+\section{Patient-Disjoint Evaluation}
+\label{sec:patientsplit}
+Sections~\ref{sec:contamination} and~\ref{sec:dedup} establish that removing duplicated images changes nothing, and Section~\ref{sec:patientleak} explains why: every matched test image belongs to a patient the model has already trained on. Recovering the figshare patient identifiers makes it possible to remove that leakage and measure what the pipeline actually does on unseen patients. The value of doing so is established by prior work (Section~\ref{sec:leakagelit}); what is specific to this dataset is that the identifiers had to be recovered before the measurement could be made at all.
 
-\subsection{Training Dynamics}
-Figure~\ref{fig:training_curves} shows loss and accuracy per epoch. The model converges quickly: validation accuracy passes 98\% by the third epoch, which is unsurprising given that the backbone starts from pretrained weights and only has to adapt. After roughly epoch 10 the training loss falls to near zero while validation loss flattens out in the 0.04 to 0.05 range and moves around without trending down. That widening gap is textbook mild overfitting, and it is precisely the situation early stopping exists to handle. Training halted at epoch 21 after five epochs without improvement, and the best checkpoint by validation loss came from epoch 16 (validation loss 0.0376, validation accuracy 99.13\%). Peak validation accuracy over the run was 99.21\% at epoch 15, slightly higher than at the checkpoint we selected, which is a reminder that selecting on loss and selecting on accuracy do not always agree.
+\paragraph{Construction.} We partition the 233 figshare patients into five folds with \texttt{build\_cv\_folds.py}, each patient assigned to exactly one fold, so that across the five folds every patient is predicted exactly once by a model that never trained on them. Patients contribute between 2 and 46 slices, so folds are balanced by greedy longest-processing-time assignment within each class rather than at random; the resulting folds differ by at most two slices per class. Two patients contribute slices to more than one class and are assigned by dominant class. The 437 tumor images with no recovered identifier go to training in every fold and are never eligible for test. The \texttt{notumor} class has no patient structure, so we group it by near-duplicate cluster instead: Section~\ref{sec:unique} shows that deduplication alone leaves that class 35\% redundant, so a deduplicated-but-random split would still put near-identical scans on both sides. Cluster membership is the closest available proxy for subject identity there, and it is a lower bound on correct grouping rather than a guarantee. Each fold is checked before use for group overlap and for pixel-identical images across the boundary; both are zero by construction and verified.
+
+\paragraph{A defect in our own pipeline.} Building this split exposed an error in the work reported above, which we correct here rather than quietly fix. Our training code split train and validation \emph{stratified by class}, not grouped by patient. In every experiment in this paper prior to this section, and in every published result we are aware of on this dataset, the checkpoint, the learning-rate schedule, early stopping, and the temperature fitted in Section~\ref{sec:calibration} were therefore selected against a validation set drawn from the same patients as the training set. On our first patient-disjoint fold, 80.3\% of validation images belonged to a patient also present in training. Model selection was being performed against exactly the contamination this paper is about. All runs reported in this section use a patient-grouped validation split; the fix is a change of splitter, and the assertion that no group straddles the train/validation boundary now runs on every training job.
+
+\paragraph{Results.} We ran three seeds per fold, with seed indices aligned across folds, so that each seed constitutes one complete pass over all 233 patients. Table~\ref{tab:patientsplit} reports the pooled estimate.
+
+\begin{table}[H]
+\centering
+\caption{Accuracy across the three splits. The first two differ only in whether duplicated images were removed; the third additionally removes patient overlap and is cross-validated over all 233 patients.}
+\label{tab:patientsplit}
+\small
+\begin{tabular}{lrr}
+\toprule
+Split & Test $n$ & Accuracy \\
+\midrule
+Released                    & 1,311 & 99.22\% $\pm$ 0.16 \\
+Deduplicated                & 1,092 & 99.42\% $\pm$ 0.30 \\
+Patient-disjoint (pooled CV)& 6,292 & \textbf{95.19\%} \\
+\quad\textit{tumor classes only}  & 4,586 & \textbf{93.68\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Pooled over all five folds, accuracy is 95.19\% (replicates 94.91, 95.42, 95.23), against 99.22\% on the released split. A patient-level bootstrap, resampling the 233 patients with replacement so that within-patient correlation between slices is respected, gives a 95\% interval of roughly [93.5\%, 96.7\%]. Restricting to the three tumor classes, where the split is fully patient-disjoint and the easy \texttt{notumor} class cannot flatter the average, accuracy is 93.68\% and macro F1 is 0.935.
+
+Per-class F1 on the tumor classes is 0.9596 $\pm$ 0.0029 for pituitary, 0.9446 $\pm$ 0.0044 for glioma, and 0.9004 $\pm$ 0.0082 for meningioma. Meningioma, which scored 0.987 on the released split, loses nearly nine points and is the class that suffers most. Pituitary tumours sit in a stereotyped anatomical location and transfer to unseen patients comparatively well; the classes whose appearance varies more between individuals do not. None of this is visible on the released split, where all three classes sit above 0.98 and appear equally solved. Figure~\ref{fig:cv_perclass} shows the three splits together: deduplication moves nothing, and the classes separate only once patient overlap is removed.
 
 \begin{figure}[H]
     \centering
-    \genfigure{training_curves.png}{0.95\linewidth}{Run \texttt{train.py} to generate this figure.}
-    \caption{Training and validation loss and accuracy per epoch. Training loss approaches zero while validation loss plateaus, which is what triggers early stopping at epoch 21.}
-    \label{fig:training_curves}
+    \genfigure{cv_per_class_f1.png}{0.98\linewidth}{Run \texttt{make\_cv\_figures.py} to generate this figure.}
+    \caption{Per-class F1 across the three splits. Deduplication leaves every class essentially unchanged; removing patient overlap separates them, and meningioma falls furthest. Generated by \texttt{make\_cv\_figures.py}.}
+    \label{fig:cv_perclass}
 \end{figure}
+
+\paragraph{A paired comparison.} The comparison above comes with the caveat that the two conditions are measured on different test sets. That caveat can be removed entirely. Every released-split test image with a recovered patient identifier appears in exactly one CV fold, so it has a prediction from a model that never saw its patient, and it also has predictions from the ten released-split models that did train on that patient. We restrict this comparison to the 761 tumor test images with a recovered patient identifier, so that the contrast is genuinely between seen and unseen \emph{patients}. A further 300 \texttt{notumor} images are scored under both regimes but are excluded, because that class has no patient structure and is grouped only by near-duplicate cluster (Section~\ref{sec:unique}); including them would describe 300 images as coming from a seen or unseen patient when they have no patient at all. On those 761 images, with identical images, identical labels, identical architecture and identical hyperparameters, accuracy is 99.12\% when the patient was in training and 93.60\% when it was not. The error rate is \textbf{7.3 times higher} on unseen patients (Figure~\ref{fig:cv_paired}). The only difference between the two conditions is whether the model had seen the patient.
+
+\begin{figure}[H]
+    \centering
+    \genfigure{cv_paired.png}{0.98\linewidth}{Run \texttt{make\_cv\_figures.py} to generate this figure.}
+    \caption{The same 761 test images scored by models that did and did not train on the patient, with everything else held constant. Accuracy differs by 5.5 points; the error rate differs by a factor of 7.3.}
+    \label{fig:cv_paired}
+\end{figure}
+
+\paragraph{Which uncertainty dominates.} Running several seeds on several partitions lets us separate two sources of variation that a single experiment confounds. A one-way random-effects decomposition over the $5 \times 3$ table of per-fold accuracies gives a seed component of $\hat\sigma_{\text{seed}} = 0.83$ points (10 df) and a partition component of $\hat\sigma_{\text{partition}} = 2.18$ points (4 df). Partition choice contributes 2.6 times the standard deviation that random initialization does. Fold means range from 92.3\% to 98.2\%, a spread of nearly six points depending on which patients happen to land in the test fold (Figure~\ref{fig:cv_spread}).
+
+\begin{figure}[H]
+    \centering
+    \genfigure{cv_fold_spread.png}{0.98\linewidth}{Run \texttt{make\_cv\_figures.py} to generate this figure.}
+    \caption{Per-fold accuracy against the pooled cross-validated estimate. Within-fold scatter is seed variance; between-fold scatter is partition variance, and it is the larger of the two. A single patient-disjoint holdout could have landed anywhere in this range.}
+    \label{fig:cv_spread}
+\end{figure}
+
+This has a direct consequence for how any single-split number on this dataset should be read, including an earlier version of our own. Combining the two components, a single run on a single random patient split carries a standard deviation of about 2.3 points. We previously reported a patient-disjoint result of 94.75\% $\pm$ 0.80 from one partition; that interval was seed variance with the partition held fixed, which is the smaller of the two terms, and it understated the real uncertainty by roughly a factor of three. We retire that figure in favour of the cross-validated estimate. The same caution applies to every single-split accuracy in Table~\ref{tab:comparison}, ours included: at this level, differences of one or two points between methods evaluated on one partition each are not interpretable.
+
+\paragraph{What this does and does not establish.} The result is one five-fold partition of one dataset with one architecture, not a claim about brain tumor classification in general, and the bootstrap interval is conditional on the training procedure rather than propagating training variability. The four-class figure mixes a patient-disjoint tumor evaluation with a \texttt{notumor} class grouped only by near-duplicate cluster, which is why we report the tumor-only number alongside it. What the result does establish, with a comfortable margin and in a paired design that controls for everything else, is that the near-ceiling accuracy this benchmark is known for depends substantially on evaluating models on patients they were trained on. The honest figure for this pipeline on unseen patients is in the low-to-mid nineties, not 99\%.
+
+\section{What Deduplication Does Not Fix}
+\label{sec:dedup}
+Section~\ref{sec:contamination} establishes that 16.5\% of the test set is duplicated in training. The natural inference is that the accuracy reported above is inflated, and that a clean test set would score materially lower. We tested that inference, and it does not hold.
+
+We built a duplicate-disjoint version of the dataset with \texttt{build\_clean\_split.py}. Every test image that is pixel-identical to a training image is dropped from the test set, duplicate groups within each split collapse to a single representative, and nothing else changes. Dropping from test rather than train keeps the training data intact, so the comparison isolates the effect of cleaning the evaluation set. The result is 5,505 training and 1,092 test images. We then reran the identical pipeline, same hyperparameters, on the clean split across 10 seeds, matching the sweep size used for Table~\ref{tab:seedvar}.
+
+\begin{table}[H]
+\centering
+\caption{Test accuracy over 10 seeds on the original and deduplicated splits. Identical configuration and hyperparameters throughout.}
+\label{tab:dedup}
+\small
+\begin{tabular}{lrr}
+\toprule
+ & Original & Deduplicated \\
+\midrule
+Test images        & 1,311 & 1,092 \\
+Mean accuracy      & 99.22\% & 99.42\% \\
+Standard deviation & 0.16 pt & 0.30 pt \\
+Range              & 98.93--99.47 & 98.81--99.73 \\
+Errors             & 10.2 $\pm$ 2.0 & 6.3 $\pm$ 3.3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Accuracy on the clean split is 99.42\%, which is 0.20 points \emph{higher} than on the contaminated split, not lower. A Welch's $t$-test on the two sets of ten runs gives $t = 1.89$, $p = 0.081$: not significant at the conventional 0.05 threshold, but closer to it than an earlier five-seed-per-condition version of this comparison suggested ($p = 0.65$), and we report that shift honestly rather than stopping at the version that told a cleaner story. The 95\% confidence interval for the deduplicated mean, [99.21\%, 99.64\%], still contains the original mean, and critically the point estimate still moves in the wrong direction for the leakage-inflation hypothesis: if duplicated test images were propping up the accuracy, removing them should lower it, not raise it. A 95\% confidence interval on the difference itself is more informative than the $p$-value, and we report it as primary: $[-0.03, +0.43]$ percentage points. Because the leakage hypothesis predicts that removing duplicates should \emph{lower} accuracy, the relevant bound is the lower limit, and the data are inconsistent with a duplicate-driven inflation larger than about 0.03 points. An earlier version of this work stated this bound as ``roughly a third of a point'', which understated the result by an order of magnitude by reasoning from the $p$-value rather than from the interval. The same qualitative pattern holds without retraining at all: taking the original seed-42 model, trained with all duplicates present, and simply scoring it on the clean test set gives 99.27\%, and on the more aggressive near-duplicate-free test set of 892 images, 99.10\%; the model does not depend on the duplicated images it saw during training.
+
+Two things explain this, and together they close the question.
+
+The first is that the duplicated images were never being memorized in the first place. Across all ten models on the released test set, the 216 duplicated test images are misclassified at 1.39\% against 0.66\% for the other 1,095, a ratio of 2.11. Duplicated images are missed \emph{more} often, not less. Per-image agreement across seeds points the same way: the duplicated images draw a unanimous prediction from all ten models on 92.6\% of cases against 97.6\% for the rest, so they are also \emph{less} stable run to run. A model coasting on memorized copies would show the opposite on both counts.
+
+We report the size and direction of that effect rather than a significance claim, because the obvious test is not valid here. Treating the 13,110 pooled predictions as independent trials (ten models scored on the same fixed images, which agree with one another on over 98\% of cases) understates the standard error substantially; an earlier version of this work did exactly that and reported $p = 0.0011$, which we withdraw. Taking the model as the unit of replication, the mean per-model difference is $+0.73$ percentage points with a 95\% confidence interval of $[-0.22, +1.69]$ (paired $t$, $p = 0.12$; Wilcoxon $p = 0.23$). Taking the image as the unit, a permutation test that shuffles the duplicate label across images while keeping each image's ten predictions intact gives $p = 0.060$. Neither reaches conventional significance at this sample size.
+
+The class-stratified view (Table~\ref{tab:dupclass}) is more informative than either test. Glioma contributes no duplicated test images at all and is the hardest class, at 1.47\% error, so it sits entirely in the non-duplicated reference group and drags that group's error rate up. The unadjusted comparison is therefore biased \emph{against} the effect we observe. Within each class that actually contains duplicates, duplicated images are missed more often than non-duplicated ones: 1.42\% against 0.80\% for meningioma, and 1.43\% against 0.00\% for \texttt{notumor}. The argument we need does not depend on a $p$-value: it is enough that the effect is not negative, and it is not negative in any class that can exhibit it.
+
+\begin{table}[H]
+\centering
+\caption{Error rate on the released test set by class and duplication status, pooled over 10 seeds. Glioma has no duplicated test images, so it contributes only to the reference group.}
+\label{tab:dupclass}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{Duplicated} & \multicolumn{2}{c}{Not duplicated} \\
+Class & $n$ & Error & $n$ & Error \\
+\midrule
+glioma      &   0 & --      & 300 & 1.47\% \\
+meningioma  & 106 & 1.42\%  & 200 & 0.80\% \\
+notumor     & 105 & 1.43\%  & 300 & 0.00\% \\
+pituitary   &   5 & 0.00\%  & 295 & 0.41\% \\
+\midrule
+All         & 216 & 1.39\%  & 1,095 & 0.66\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The second, and the more important, is that deduplication never removed the contamination that matters. Section~\ref{sec:patientleak} shows that 756 of 756 matched test images in the deduplicated split still belong to a patient present in training, exactly as in the original split, and the more aggressive near-duplicate variant gives the same 100\%. Deduplication removes repeated \emph{images} while leaving every repeated \emph{patient} in place. Asking whether it changes accuracy was, in retrospect, asking whether a small subset of redundant images mattered while the far larger source of optimism went untouched. It did not change accuracy because it could not. Section~\ref{sec:patientsplit} runs the experiment that actually removes the leakage.
+
+One caveat on the comparison itself: it is not like-for-like in the strict sense, because deduplication necessarily changes the test set it is measured on, so this is accuracy on a clean test set against accuracy on a contaminated one rather than a paired difference.
+
+An earlier version of this work additionally argued that contamination suppressed run-to-run variance, on the grounds that the original split's seed-to-seed spread fell below a binomial sampling floor. We have withdrawn that argument. Binomial sampling error describes the uncertainty of an accuracy estimate when the test set is resampled; across seeds the test set is fixed and only the model changes, so there is no such lower bound to fall below, and two independently trained models can legitimately agree on nearly every image. The agreement measurements above are what that claim should have been in the first place, and they point the other way.
+
+Per-class F1 on the clean split, averaged over all ten seeds, is 0.9929 $\pm$ 0.0047 for glioma, 0.9845 $\pm$ 0.0075 for meningioma, 0.9992 $\pm$ 0.0012 for \texttt{notumor}, and 0.9971 $\pm$ 0.0011 for pituitary. Glioma and meningioma are where the remaining difficulty lives, and notably glioma is the class with no contamination at all, so its difficulty was never an artifact to begin with.
+
+\section{Baseline on the Released Split}
+\label{sec:baseline}
+For completeness, and because it is the number every other study on this dataset reports, we characterize the same pipeline on the released split. Every figure in this section is measured under the leakage documented in Section~\ref{sec:dataset} and under the contaminated validation split described in Section~\ref{sec:patientsplit}. None of it measures generalization to a new patient. We report it so that the comparison in Section~\ref{sec:patientsplit} has a baseline and so that our numbers can be checked against the literature, not as a description of what the model can do.
 
 \subsection{Test Set Performance}
 The selected checkpoint was evaluated once on the 1,311 images of the released test folder. Overall accuracy is 99.16\%, corresponding to 1,300 correct predictions and 11 errors. Table~\ref{tab:results} breaks this down by class.
@@ -436,43 +549,6 @@ Weighted avg & 0.992 & 0.992 & 0.992 & 1,311 \\
 \end{table}
 
 Performance is consistent across classes, with F1 scores between 0.987 and 0.997. The weakest class is glioma, whose recall of 0.977 is noticeably below its precision of 0.997. In plain terms, when the model says a scan is a glioma it is almost always right, but it misses about 2\% of actual gliomas. Given that gliomas are the more aggressive tumor type, a missed glioma is the most costly error in this matrix, so the asymmetry is worth naming rather than averaging away.
-
-\subsection{Confusion Matrix and Error Analysis}
-Figure~\ref{fig:confusion_matrix} shows the normalized confusion matrix, and Table~\ref{tab:cm} gives the raw counts, which are easier to reason about when the errors are this few.
-
-\begin{figure}[H]
-    \centering
-    \genfigure{confusion_matrix.png}{0.85\linewidth}{Run \texttt{evaluate.py} to generate this figure.}
-    \caption{Test-set confusion matrix, normalized by true class.}
-    \label{fig:confusion_matrix}
-\end{figure}
-
-\begin{table}[H]
-\centering
-\caption{Raw confusion matrix. Rows are true classes, columns are predictions.}
-\label{tab:cm}
-\begin{tabular}{lrrrr}
-\toprule
-True $\backslash$ Pred & glio. & men. & not. & pit. \\
-\midrule
-glioma      & \textbf{293} & 5 & 2 & 0 \\
-meningioma  & 0 & \textbf{304} & 1 & 1 \\
-notumor     & 1 & 0 & \textbf{404} & 0 \\
-pituitary   & 0 & 1 & 0 & \textbf{299} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The errors are not spread evenly. Seven of the 11 come from the glioma class, and five of those are gliomas predicted as meningiomas, making glioma-to-meningioma the single dominant failure mode. This is a clinically sensible confusion: both are common primary tumors, both can present with similar contrast enhancement on a single 2D slice, and distinguishing them often depends on location and volumetric context that a single slice does not carry. The remaining errors are scattered: two gliomas read as no tumor, one meningioma each as no tumor and pituitary, one no-tumor scan read as glioma, and one pituitary as meningioma. The two false negatives where a glioma is called healthy are the most concerning cases in the set, even at only two out of 300.
-
-A detail that a headline accuracy number hides is how confident the model is when it is wrong. Of the 11 errors, four were made with softmax confidence above 0.92, including a glioma called meningioma at 0.964. Only two errors fell below 0.60, which is roughly where a confidence threshold might plausibly route a case for human review. A model that fails loudly and confidently is harder to build a safe workflow around than one whose errors sit near the decision boundary, and this is the clearest evidence in our results that calibration deserves attention before anything like clinical use. Figure~\ref{fig:misclassified} shows the misclassified scans themselves.
-
-\begin{figure}[H]
-    \centering
-    \genfigure{misclassified_examples.png}{0.95\linewidth}{Run \texttt{evaluate.py} to generate this figure.}
-    \caption{Misclassified test scans with true and predicted labels.}
-    \label{fig:misclassified}
-\end{figure}
 
 \subsection{Ranking Quality}
 Figure~\ref{fig:roc_curves} shows one-vs-rest ROC curves. All four classes have an AUC above 0.999 (glioma 0.9999, meningioma 0.9998, notumor 1.0000, pituitary 1.0000), with a macro average of 0.9999. AUC measures how well the model ranks positives above negatives independent of any specific threshold, so on this split the class scores are almost perfectly separable. That near-perfect separability is itself a property of the split rather than of the method. Under patient-disjoint cross-validation the same pipeline gives a macro AUC of 0.9936 on average (range 0.978 to 0.999 across the fifteen runs), so the apparent headroom between 0.9999 and a perfect ranking is roughly forty times larger once the patients are unseen. We report the released-split figure here for continuity with the literature, not because it measures ranking quality on new patients. They should be read alongside, not instead of, the confusion matrix: near-perfect AUC and 11 hard errors at the default threshold are consistent, and together they suggest that a better-chosen operating point could trade some precision for the glioma recall that matters most here.
@@ -539,7 +615,7 @@ Off & Frozen & 84.99\% $\pm$ 0.31 & 196.8 $\pm$ 4.0 \\
 
 \subsection{Calibration}
 \label{sec:calibration}
-Section~\ref{sec:results} noted that several errors are made with high softmax confidence, which is a calibration problem rather than an accuracy problem: a well-calibrated model's confidence should track its actual probability of being correct, and a model that is confidently wrong is dangerous to route into a workflow that trusts confidence as a proxy for correctness. We fit a single temperature parameter $T$ \citep{guo2017calibration} on the validation set by minimizing negative log-likelihood, then divide test-set logits by $T$ before softmax. Temperature scaling cannot change which class is predicted, since dividing all logits by a positive constant does not change their ranking, so it can only reshape confidence, not accuracy or the identity of the 11 test errors.
+Appendix~\ref{app:baseline} notes that several errors on the released split are made with high softmax confidence, which is a calibration problem rather than an accuracy problem: a well-calibrated model's confidence should track its actual probability of being correct, and a model that is confidently wrong is dangerous to route into a workflow that trusts confidence as a proxy for correctness. We fit a single temperature parameter $T$ \citep{guo2017calibration} on the validation set by minimizing negative log-likelihood, then divide test-set logits by $T$ before softmax. Temperature scaling cannot change which class is predicted, since dividing all logits by a positive constant does not change their ranking, so it can only reshape confidence, not accuracy or the identity of the 11 test errors.
 
 The fitted temperature was $T = 1.38$, meaning the network's raw logits were somewhat overconfident and needed softening. Table~\ref{tab:calibration} reports expected calibration error (ECE) and negative log-likelihood (NLL) before and after scaling, on both the validation set the temperature was fit on and the released test folder.
 
@@ -550,15 +626,17 @@ The fitted temperature was $T = 1.38$, meaning the network's raw logits were som
 \small
 \begin{tabular}{lrrrr}
 \toprule
- & \multicolumn{2}{c}{Released split ($T=1.38$)} & \multicolumn{2}{c}{Patient-disjoint ($T=1.52$)} \\
-Metric & Before & After & Before & After \\
+ & \multicolumn{2}{c}{Released} & \multicolumn{2}{c}{Pt.-disjoint} \\
+ & \multicolumn{2}{c}{$T=1.38$} & \multicolumn{2}{c}{$T=1.52$} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Metric & Pre & Post & Pre & Post \\
 \midrule
-Validation ECE & 0.0058 & 0.0034 & 0.0338 & 0.0176 \\
-Validation NLL & 0.0376 & 0.0339 & 0.2394 & 0.2065 \\
-Test ECE       & 0.0043 & 0.0048 & 0.0119 & 0.0324 \\
-Test NLL       & 0.0209 & 0.0209 & 0.1089 & 0.1237 \\
+Val.\ ECE  & 0.0058 & 0.0034 & 0.0338 & 0.0176 \\
+Val.\ NLL  & 0.0376 & 0.0339 & 0.2394 & 0.2065 \\
+Test ECE   & 0.0043 & 0.0048 & 0.0119 & 0.0324 \\
+Test NLL   & 0.0209 & 0.0209 & 0.1089 & 0.1237 \\
 \midrule
-Errors at conf. $>0.90$ & 4 & 1 & 11 & 2 \\
+Err.\ conf.\ $>0.90$ & 4 & 1 & 11 & 2 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -569,131 +647,9 @@ That reading is wrong, and the reason is the subject of this paper. Every number
 
 There is a further wrinkle worth recording. On the patient-disjoint fold, temperature scaling makes test ECE \emph{worse} (0.0119 to 0.0324), because the temperature fitted on the validation fold overshoots for the test fold. With genuinely unseen patients on both sides, a single global temperature is a cruder instrument than it appears to be under leakage. Calibration on this benchmark is therefore not a solved problem that the released split makes look easy; it is an open one that the released split conceals.
 
-What does change, and what we think is the actually useful part of this analysis, is the confidence assigned to the errors that matter most. Of the four test errors originally made with confidence above 0.90 (Section~\ref{sec:results}), only one remains above 0.90 after temperature scaling; the glioma misclassified as meningioma at 0.964 confidence drops to 0.911, and three other high-confidence errors drop below the 0.90 threshold entirely. In other words, temperature scaling did not move the aggregate calibration metric much on this test set, but it specifically pulled down the confidence of the errors that a confidence-based review threshold would otherwise have let through uninspected. That is a small effect on a single held-out set of 1,311 images, and we would not generalize it beyond this dataset, but it is a concrete, cheap intervention that a deployment could apply for free before deciding what confidence threshold routes a case to a radiologist.
+What does change, and what we think is the actually useful part of this analysis, is the confidence assigned to the errors that matter most. Of the four test errors originally made with confidence above 0.90 (Appendix~\ref{app:baseline}), only one remains above 0.90 after temperature scaling; the glioma misclassified as meningioma at 0.964 confidence drops to 0.911, and three other high-confidence errors drop below the 0.90 threshold entirely. In other words, temperature scaling did not move the aggregate calibration metric much on this test set, but it specifically pulled down the confidence of the errors that a confidence-based review threshold would otherwise have let through uninspected. That is a small effect on a single held-out set of 1,311 images, and we would not generalize it beyond this dataset, but it is a concrete, cheap intervention that a deployment could apply for free before deciding what confidence threshold routes a case to a radiologist.
 
-\subsection{Does the Contamination Inflate the Result?}
-\label{sec:dedup}
-Section~\ref{sec:contamination} establishes that 16.5\% of the test set is duplicated in training. The natural inference is that the accuracy reported above is inflated, and that a clean test set would score materially lower. We tested that inference, and it does not hold.
-
-We built a duplicate-disjoint version of the dataset with \texttt{build\_clean\_split.py}. Every test image that is pixel-identical to a training image is dropped from the test set, duplicate groups within each split collapse to a single representative, and nothing else changes. Dropping from test rather than train keeps the training data intact, so the comparison isolates the effect of cleaning the evaluation set. The result is 5,505 training and 1,092 test images. We then reran the identical pipeline, same hyperparameters, on the clean split across 10 seeds, matching the sweep size used for Table~\ref{tab:seedvar}.
-
-\begin{table}[H]
-\centering
-\caption{Test accuracy over 10 seeds on the original and deduplicated splits. Identical configuration and hyperparameters throughout.}
-\label{tab:dedup}
-\small
-\begin{tabular}{lrr}
-\toprule
- & Original & Deduplicated \\
-\midrule
-Test images        & 1,311 & 1,092 \\
-Mean accuracy      & 99.22\% & 99.42\% \\
-Standard deviation & 0.16 pt & 0.30 pt \\
-Range              & 98.93--99.47 & 98.81--99.73 \\
-Errors             & 10.2 $\pm$ 2.0 & 6.3 $\pm$ 3.3 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Accuracy on the clean split is 99.42\%, which is 0.20 points \emph{higher} than on the contaminated split, not lower. A Welch's $t$-test on the two sets of ten runs gives $t = 1.89$, $p = 0.081$: not significant at the conventional 0.05 threshold, but closer to it than an earlier five-seed-per-condition version of this comparison suggested ($p = 0.65$), and we report that shift honestly rather than stopping at the version that told a cleaner story. The 95\% confidence interval for the deduplicated mean, [99.21\%, 99.64\%], still contains the original mean, and critically the point estimate still moves in the wrong direction for the leakage-inflation hypothesis: if duplicated test images were propping up the accuracy, removing them should lower it, not raise it. A 95\% confidence interval on the difference itself is more informative than the $p$-value, and we report it as primary: $[-0.03, +0.43]$ percentage points. Because the leakage hypothesis predicts that removing duplicates should \emph{lower} accuracy, the relevant bound is the lower limit, and the data are inconsistent with a duplicate-driven inflation larger than about 0.03 points. An earlier version of this work stated this bound as ``roughly a third of a point'', which understated the result by an order of magnitude by reasoning from the $p$-value rather than from the interval. The same qualitative pattern holds without retraining at all: taking the original seed-42 model, trained with all duplicates present, and simply scoring it on the clean test set gives 99.27\%, and on the more aggressive near-duplicate-free test set of 892 images, 99.10\%; the model does not depend on the duplicated images it saw during training.
-
-Two things explain this, and together they close the question.
-
-The first is that the duplicated images were never being memorized in the first place. Across all ten models on the released test set, the 216 duplicated test images are misclassified at 1.39\% against 0.66\% for the other 1,095, a ratio of 2.11. Duplicated images are missed \emph{more} often, not less. Per-image agreement across seeds points the same way: the duplicated images draw a unanimous prediction from all ten models on 92.6\% of cases against 97.6\% for the rest, so they are also \emph{less} stable run to run. A model coasting on memorized copies would show the opposite on both counts.
-
-We report the size and direction of that effect rather than a significance claim, because the obvious test is not valid here. Treating the 13,110 pooled predictions as independent trials (ten models scored on the same fixed images, which agree with one another on over 98\% of cases) understates the standard error substantially; an earlier version of this work did exactly that and reported $p = 0.0011$, which we withdraw. Taking the model as the unit of replication, the mean per-model difference is $+0.73$ percentage points with a 95\% confidence interval of $[-0.22, +1.69]$ (paired $t$, $p = 0.12$; Wilcoxon $p = 0.23$). Taking the image as the unit, a permutation test that shuffles the duplicate label across images while keeping each image's ten predictions intact gives $p = 0.060$. Neither reaches conventional significance at this sample size.
-
-The class-stratified view (Table~\ref{tab:dupclass}) is more informative than either test. Glioma contributes no duplicated test images at all and is the hardest class, at 1.47\% error, so it sits entirely in the non-duplicated reference group and drags that group's error rate up. The unadjusted comparison is therefore biased \emph{against} the effect we observe. Within each class that actually contains duplicates, duplicated images are missed more often than non-duplicated ones: 1.42\% against 0.80\% for meningioma, and 1.43\% against 0.00\% for \texttt{notumor}. The argument we need does not depend on a $p$-value: it is enough that the effect is not negative, and it is not negative in any class that can exhibit it.
-
-\begin{table}[H]
-\centering
-\caption{Error rate on the released test set by class and duplication status, pooled over 10 seeds. Glioma has no duplicated test images, so it contributes only to the reference group.}
-\label{tab:dupclass}
-\small
-\begin{tabular}{lrrrr}
-\toprule
- & \multicolumn{2}{c}{Duplicated} & \multicolumn{2}{c}{Not duplicated} \\
-Class & $n$ & Error & $n$ & Error \\
-\midrule
-glioma      &   0 & --      & 300 & 1.47\% \\
-meningioma  & 106 & 1.42\%  & 200 & 0.80\% \\
-notumor     & 105 & 1.43\%  & 300 & 0.00\% \\
-pituitary   &   5 & 0.00\%  & 295 & 0.41\% \\
-\midrule
-All         & 216 & 1.39\%  & 1,095 & 0.66\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The second, and the more important, is that deduplication never removed the contamination that matters. Section~\ref{sec:patientleak} shows that 756 of 756 matched test images in the deduplicated split still belong to a patient present in training, exactly as in the original split, and the more aggressive near-duplicate variant gives the same 100\%. Deduplication removes repeated \emph{images} while leaving every repeated \emph{patient} in place. Asking whether it changes accuracy was, in retrospect, asking whether a small subset of redundant images mattered while the far larger source of optimism went untouched. It did not change accuracy because it could not. Section~\ref{sec:patientsplit} runs the experiment that actually removes the leakage.
-
-One caveat on the comparison itself: it is not like-for-like in the strict sense, because deduplication necessarily changes the test set it is measured on, so this is accuracy on a clean test set against accuracy on a contaminated one rather than a paired difference.
-
-An earlier version of this work additionally argued that contamination suppressed run-to-run variance, on the grounds that the original split's seed-to-seed spread fell below a binomial sampling floor. We have withdrawn that argument. Binomial sampling error describes the uncertainty of an accuracy estimate when the test set is resampled; across seeds the test set is fixed and only the model changes, so there is no such lower bound to fall below, and two independently trained models can legitimately agree on nearly every image. The agreement measurements above are what that claim should have been in the first place, and they point the other way.
-
-Per-class F1 on the clean split, averaged over all ten seeds, is 0.9929 $\pm$ 0.0047 for glioma, 0.9845 $\pm$ 0.0075 for meningioma, 0.9992 $\pm$ 0.0012 for \texttt{notumor}, and 0.9971 $\pm$ 0.0011 for pituitary. Glioma and meningioma are where the remaining difficulty lives, and notably glioma is the class with no contamination at all, so its difficulty was never an artifact to begin with.
-
-\subsection{A Patient-Disjoint Split}
-\label{sec:patientsplit}
-Sections~\ref{sec:contamination} and~\ref{sec:dedup} establish that removing duplicated images changes nothing, and Section~\ref{sec:patientleak} explains why: every matched test image belongs to a patient the model has already trained on. Recovering the figshare patient identifiers makes it possible to remove that leakage and measure what the pipeline actually does on unseen patients. The value of doing so is established by prior work (Section~\ref{sec:leakagelit}); what is specific to this dataset is that the identifiers had to be recovered before the measurement could be made at all.
-
-\paragraph{Construction.} We partition the 233 figshare patients into five folds with \texttt{build\_cv\_folds.py}, each patient assigned to exactly one fold, so that across the five folds every patient is predicted exactly once by a model that never trained on them. Patients contribute between 2 and 46 slices, so folds are balanced by greedy longest-processing-time assignment within each class rather than at random; the resulting folds differ by at most two slices per class. Two patients contribute slices to more than one class and are assigned by dominant class. The 437 tumor images with no recovered identifier go to training in every fold and are never eligible for test. The \texttt{notumor} class has no patient structure, so we group it by near-duplicate cluster instead: Section~\ref{sec:unique} shows that deduplication alone leaves that class 35\% redundant, so a deduplicated-but-random split would still put near-identical scans on both sides. Cluster membership is the closest available proxy for subject identity there, and it is a lower bound on correct grouping rather than a guarantee. Each fold is checked before use for group overlap and for pixel-identical images across the boundary; both are zero by construction and verified.
-
-\paragraph{A defect in our own pipeline.} Building this split exposed an error in the work reported above, which we correct here rather than quietly fix. Our training code split train and validation \emph{stratified by class}, not grouped by patient. In every experiment in this paper prior to this section, and in every published result we are aware of on this dataset, the checkpoint, the learning-rate schedule, early stopping, and the temperature fitted in Section~\ref{sec:calibration} were therefore selected against a validation set drawn from the same patients as the training set. On our first patient-disjoint fold, 80.3\% of validation images belonged to a patient also present in training. Model selection was being performed against exactly the contamination this paper is about. All runs reported in this section use a patient-grouped validation split; the fix is a change of splitter, and the assertion that no group straddles the train/validation boundary now runs on every training job.
-
-\paragraph{Results.} We ran three seeds per fold, with seed indices aligned across folds, so that each seed constitutes one complete pass over all 233 patients. Table~\ref{tab:patientsplit} reports the pooled estimate.
-
-\begin{table}[H]
-\centering
-\caption{Accuracy across the three splits. The first two differ only in whether duplicated images were removed; the third additionally removes patient overlap and is cross-validated over all 233 patients.}
-\label{tab:patientsplit}
-\small
-\begin{tabular}{lrr}
-\toprule
-Split & Test $n$ & Accuracy \\
-\midrule
-Released                    & 1,311 & 99.22\% $\pm$ 0.16 \\
-Deduplicated                & 1,092 & 99.42\% $\pm$ 0.30 \\
-Patient-disjoint (pooled CV)& 6,292 & \textbf{95.19\%} \\
-\quad\textit{tumor classes only}  & 4,586 & \textbf{93.68\%} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Pooled over all five folds, accuracy is 95.19\% (replicates 94.91, 95.42, 95.23), against 99.22\% on the released split. A patient-level bootstrap, resampling the 233 patients with replacement so that within-patient correlation between slices is respected, gives a 95\% interval of roughly [93.5\%, 96.7\%]. Restricting to the three tumor classes, where the split is fully patient-disjoint and the easy \texttt{notumor} class cannot flatter the average, accuracy is 93.68\% and macro F1 is 0.935.
-
-Per-class F1 on the tumor classes is 0.9596 $\pm$ 0.0029 for pituitary, 0.9446 $\pm$ 0.0044 for glioma, and 0.9004 $\pm$ 0.0082 for meningioma. Meningioma, which scored 0.987 on the released split, loses nearly nine points and is the class that suffers most. Pituitary tumours sit in a stereotyped anatomical location and transfer to unseen patients comparatively well; the classes whose appearance varies more between individuals do not. None of this is visible on the released split, where all three classes sit above 0.98 and appear equally solved. Figure~\ref{fig:cv_perclass} shows the three splits together: deduplication moves nothing, and the classes separate only once patient overlap is removed.
-
-\begin{figure}[H]
-    \centering
-    \genfigure{cv_per_class_f1.png}{0.98\linewidth}{Run \texttt{make\_cv\_figures.py} to generate this figure.}
-    \caption{Per-class F1 across the three splits. Deduplication leaves every class essentially unchanged; removing patient overlap separates them, and meningioma falls furthest. Generated by \texttt{make\_cv\_figures.py}.}
-    \label{fig:cv_perclass}
-\end{figure}
-
-\paragraph{A paired comparison.} The comparison above comes with the caveat that the two conditions are measured on different test sets. That caveat can be removed entirely. Every released-split test image with a recovered patient identifier appears in exactly one CV fold, so it has a prediction from a model that never saw its patient, and it also has predictions from the ten released-split models that did train on that patient. We restrict this comparison to the 761 tumor test images with a recovered patient identifier, so that the contrast is genuinely between seen and unseen \emph{patients}. A further 300 \texttt{notumor} images are scored under both regimes but are excluded, because that class has no patient structure and is grouped only by near-duplicate cluster (Section~\ref{sec:unique}); including them would describe 300 images as coming from a seen or unseen patient when they have no patient at all. On those 761 images, with identical images, identical labels, identical architecture and identical hyperparameters, accuracy is 99.12\% when the patient was in training and 93.60\% when it was not. The error rate is \textbf{7.3 times higher} on unseen patients (Figure~\ref{fig:cv_paired}). The only difference between the two conditions is whether the model had seen the patient.
-
-\begin{figure}[H]
-    \centering
-    \genfigure{cv_paired.png}{0.98\linewidth}{Run \texttt{make\_cv\_figures.py} to generate this figure.}
-    \caption{The same 761 test images scored by models that did and did not train on the patient, with everything else held constant. Accuracy differs by 5.5 points; the error rate differs by a factor of 7.3.}
-    \label{fig:cv_paired}
-\end{figure}
-
-\paragraph{Which uncertainty dominates.} Running several seeds on several partitions lets us separate two sources of variation that a single experiment confounds. A one-way random-effects decomposition over the $5 \times 3$ table of per-fold accuracies gives a seed component of $\hat\sigma_{\text{seed}} = 0.83$ points (10 df) and a partition component of $\hat\sigma_{\text{partition}} = 2.18$ points (4 df). Partition choice contributes 2.6 times the standard deviation that random initialization does. Fold means range from 92.3\% to 98.2\%, a spread of nearly six points depending on which patients happen to land in the test fold (Figure~\ref{fig:cv_spread}).
-
-\begin{figure}[H]
-    \centering
-    \genfigure{cv_fold_spread.png}{0.98\linewidth}{Run \texttt{make\_cv\_figures.py} to generate this figure.}
-    \caption{Per-fold accuracy against the pooled cross-validated estimate. Within-fold scatter is seed variance; between-fold scatter is partition variance, and it is the larger of the two. A single patient-disjoint holdout could have landed anywhere in this range.}
-    \label{fig:cv_spread}
-\end{figure}
-
-This has a direct consequence for how any single-split number on this dataset should be read, including an earlier version of our own. Combining the two components, a single run on a single random patient split carries a standard deviation of about 2.3 points. We previously reported a patient-disjoint result of 94.75\% $\pm$ 0.80 from one partition; that interval was seed variance with the partition held fixed, which is the smaller of the two terms, and it understated the real uncertainty by roughly a factor of three. We retire that figure in favour of the cross-validated estimate. The same caution applies to every single-split accuracy in Table~\ref{tab:comparison}, ours included: at this level, differences of one or two points between methods evaluated on one partition each are not interpretable.
-
-\paragraph{What this does and does not establish.} The result is one five-fold partition of one dataset with one architecture, not a claim about brain tumor classification in general, and the bootstrap interval is conditional on the training procedure rather than propagating training variability. The four-class figure mixes a patient-disjoint tumor evaluation with a \texttt{notumor} class grouped only by near-duplicate cluster, which is why we report the tumor-only number alongside it. What the result does establish, with a comfortable margin and in a paired design that controls for everything else, is that the near-ceiling accuracy this benchmark is known for depends substantially on evaluating models on patients they were trained on. The honest figure for this pipeline on unseen patients is in the low-to-mid nineties, not 99\%.
-
-\subsection{Comparison with Prior Work}
+\section{Comparison with Prior Work}
 Table~\ref{tab:comparison} places our result next to recent transfer learning work on brain tumor MRI. We want to be careful about how much weight this carries, and after Sections~\ref{sec:contamination} and~\ref{sec:variance} there are three separate reasons for caution. These studies use different dataset versions, different splits, and in one case only three classes. None of them, as far as we can tell from their published descriptions, check for or control for duplicate contamination in the split they evaluate on. And the seed-to-seed spread we measure, 0.16 points on the released split and 0.30 after deduplication, is larger than most of the gaps between the entries in this table, so single-run differences of a few tenths of a point between any of these methods are not interpretable.
 
 The honest reading is that a plain fine-tuned ResNet-18, smaller and cheaper than most of the architectures listed, lands in the same range as heavier models and ensembles, and that this range is where essentially everything lands on a saturated benchmark. That is useful mainly as a floor: if a more complex method cannot beat this baseline by a margin clearly exceeding seed noise, the added complexity is hard to justify.
@@ -802,7 +758,7 @@ A related limit on that experiment is the \texttt{notumor} class. It has no reco
 
 Turning from the split to the measurements made on it, we now have an estimate of run-to-run noise (Section~\ref{sec:variance}), and it is not negligible: test accuracy across ten seeds ranged from 98.93\% to 99.47\%, a standard deviation of 0.16 points. That means a reported accuracy anywhere in roughly that range from a single run, ours or anyone else's, is consistent with the same underlying model and training recipe. Table~\ref{tab:comparison}'s comparison against other single-run numbers from the literature should be read with this in mind: at this accuracy level, the differences between competing methods are frequently smaller than the seed-to-seed noise of any one of them, and a fair comparison would need a seed sweep on every method being compared, not just this one.
 
-Next, the model is confidently wrong on a meaningful share of its errors, as Section~\ref{sec:results} describes, and we followed up on this directly with temperature scaling (Section~\ref{sec:calibration}). The result was more mixed than we expected: aggregate test-set calibration barely moved, because it was already good, but the confidence of the specific high-confidence errors dropped substantially, cutting the number of errors above 0.90 confidence from four to one. Deeper uncertainty estimation, for example from deep ensembles or Monte Carlo dropout, was out of scope here and remains a reasonable next step, particularly because a single temperature fit on 1,143 validation images is a coarse instrument compared to per-sample uncertainty.
+Next, the model is confidently wrong on a meaningful share of its errors, as Appendix~\ref{app:baseline} describes, and we followed up on this directly with temperature scaling (Section~\ref{sec:calibration}). The result was more mixed than we expected: aggregate test-set calibration barely moved, because it was already good, but the confidence of the specific high-confidence errors dropped substantially, cutting the number of errors above 0.90 confidence from four to one. Deeper uncertainty estimation, for example from deep ensembles or Monte Carlo dropout, was out of scope here and remains a reasonable next step, particularly because a single temperature fit on 1,143 validation images is a coarse instrument compared to per-sample uncertainty.
 
 The model also reads a single 2D slice and ignores the volumetric structure of the scan. The dominant glioma-to-meningioma confusion is plausibly a direct consequence: the cues that separate those two often live in tumor location and extent across slices. A 3D CNN or a model that aggregates predictions across neighboring slices is the natural fix and is likely to help precisely where this model is weakest.
 
@@ -812,7 +768,11 @@ The deduplication comparison in Section~\ref{sec:dedup} is a null result, and nu
 
 Finally on method, our provenance work reached the wrong answer before it reached the right one, and the reason generalizes. Content matching between an aggregated dataset and a candidate source is only as good as its negative control. Ours was a pair of identical files, which certified nothing about robustness to the transformations that actually occur, and the resulting false negative survived until we constructed a control that simulated the release pipeline. Any study attempting this kind of trace should calibrate against transformed matches, not identical ones. We also tested only the figshare component: the SARTAJ and Br35H attributions remain unverified, and 437 tumor images (8.7\%) did not match at threshold for reasons we have not diagnosed.
 
-A confound specific to the per-class results deserves naming. Only 58\% of meningioma test images could be traced to a patient, against 96\% and 99\% for glioma and pituitary, and the 437 untraced tumor images are assigned to training in every fold. Meningioma is also the class that degrades most on the patient-disjoint split. We cannot fully separate these: some of that degradation may reflect a distribution difference between the traced and untraced subpopulations rather than the removal of patient leakage. Disambiguating it would require establishing the provenance of the untraced images, which we were not able to do.
+A confound specific to the per-class results deserves naming, and we tested it rather than leaving it as a caveat. Only 58\% of meningioma test images could be traced to a patient, against 96\% and 99\% for glioma and pituitary, and the 437 untraced tumor images are assigned to training in every fold. Meningioma is also the class that degrades most on the patient-disjoint split. That admits two readings: removing patient leakage genuinely costs meningioma most, or the traced and untraced subpopulations differ, so the patient-disjoint evaluation is simply scored on a harder subset.
+
+Two checks separate them, neither requiring any retraining. First, we recomputed the released-split per-class metrics restricted to exactly the traced images the patient-disjoint result is measured on. Meningioma scores 0.9822 $\pm$ 0.0049 there, against 0.9847 on the full released test set, and 0.9004 under patient-disjoint cross-validation. Measured over an identical population of images, the class still loses roughly eight points when patient overlap is removed, so the collapse is not an artifact of which images could be traced.
+
+Second, we asked whether traced and untraced images are distinguishable at all. They are, for meningioma: the untraced images have a mean intensity of 66.3 against 39.9 for the traced ones, a different dominant JPEG quantization table, and a minority at $225 \times 225$ rather than $512 \times 512$. The untraced meningioma images are evidently a different subpopulation, plausibly the SARTAJ component of the aggregation, which is consistent with our inability to match them to figshare. This does not rescue the confound, because those images sit in training rather than test and the first check controls for the test population directly, but it is a further reason to treat this collection as a heterogeneous assembly rather than one dataset, and it is a provenance signal that a future audit could pursue.
 
 Finally, this system only classifies, and it assumes it is handed a usable, roughly centered slice. A real diagnostic tool would need segmentation, automated quality control for artifacts and off-target slices, and integration with patient history to resemble how a radiologist actually works a case.
 
@@ -834,8 +794,99 @@ We want to be careful about the scope of that claim. It is a statement about one
 
 \paragraph{Recommended protocol for this dataset.} Rather than leave this as a complaint, we release what is needed to avoid the problem. \texttt{figshare\_patient\_map.json} gives a recovered patient identifier for 4,586 of the 5,023 tumor images, and \texttt{cv\_folds.json} gives a fixed five-fold patient-disjoint partition with every patient assigned to exactly one test fold. We suggest that work using this dataset (i) report which split was used, (ii) evaluate on patient-disjoint folds rather than the released folders, and (iii) group the train/validation split by patient as well, since model selection is corrupted by leakage just as evaluation is. Both artifacts are derived metadata rather than redistributed images, so they can be used without reference to the licensing of the underlying collections.
 
+\appendix
+
+\section{Released-Split Detail}
+\label{app:baseline}
+This appendix collects the remaining characterization of the released split. As in Section~\ref{sec:baseline}, every number here is measured under leakage and is reported for completeness rather than as evidence about performance on unseen patients.
+
+\subsection{Training Dynamics}
+Figure~\ref{fig:training_curves} shows loss and accuracy per epoch. The model converges quickly: validation accuracy passes 98\% by the third epoch, which is unsurprising given that the backbone starts from pretrained weights and only has to adapt. After roughly epoch 10 the training loss falls to near zero while validation loss flattens out in the 0.04 to 0.05 range and moves around without trending down. That widening gap is textbook mild overfitting, and it is precisely the situation early stopping exists to handle. Training halted at epoch 21 after five epochs without improvement, and the best checkpoint by validation loss came from epoch 16 (validation loss 0.0376, validation accuracy 99.13\%). Peak validation accuracy over the run was 99.21\% at epoch 15, slightly higher than at the checkpoint we selected, which is a reminder that selecting on loss and selecting on accuracy do not always agree.
+
+\begin{figure}[H]
+    \centering
+    \genfigure{training_curves.png}{0.95\linewidth}{Run \texttt{train.py} to generate this figure.}
+    \caption{Training and validation loss and accuracy per epoch. Training loss approaches zero while validation loss plateaus, which is what triggers early stopping at epoch 21.}
+    \label{fig:training_curves}
+\end{figure}
+
+\subsection{Confusion Matrix and Error Analysis}
+Figure~\ref{fig:confusion_matrix} shows the normalized confusion matrix, and Table~\ref{tab:cm} gives the raw counts, which are easier to reason about when the errors are this few.
+
+\begin{figure}[H]
+    \centering
+    \genfigure{confusion_matrix.png}{0.85\linewidth}{Run \texttt{evaluate.py} to generate this figure.}
+    \caption{Test-set confusion matrix, normalized by true class.}
+    \label{fig:confusion_matrix}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Raw confusion matrix. Rows are true classes, columns are predictions.}
+\label{tab:cm}
+\begin{tabular}{lrrrr}
+\toprule
+True $\backslash$ Pred & glio. & men. & not. & pit. \\
+\midrule
+glioma      & \textbf{293} & 5 & 2 & 0 \\
+meningioma  & 0 & \textbf{304} & 1 & 1 \\
+notumor     & 1 & 0 & \textbf{404} & 0 \\
+pituitary   & 0 & 1 & 0 & \textbf{299} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The errors are not spread evenly. Seven of the 11 come from the glioma class, and five of those are gliomas predicted as meningiomas, making glioma-to-meningioma the single dominant failure mode. This is a clinically sensible confusion: both are common primary tumors, both can present with similar contrast enhancement on a single 2D slice, and distinguishing them often depends on location and volumetric context that a single slice does not carry. The remaining errors are scattered: two gliomas read as no tumor, one meningioma each as no tumor and pituitary, one no-tumor scan read as glioma, and one pituitary as meningioma. The two false negatives where a glioma is called healthy are the most concerning cases in the set, even at only two out of 300.
+
+A detail that a headline accuracy number hides is how confident the model is when it is wrong. Of the 11 errors, four were made with softmax confidence above 0.92, including a glioma called meningioma at 0.964. Only two errors fell below 0.60, which is roughly where a confidence threshold might plausibly route a case for human review. A model that fails loudly and confidently is harder to build a safe workflow around than one whose errors sit near the decision boundary, and this is the clearest evidence in our results that calibration deserves attention before anything like clinical use. Figure~\ref{fig:misclassified} shows the misclassified scans themselves.
+
+\begin{figure}[H]
+    \centering
+    \genfigure{misclassified_examples.png}{0.95\linewidth}{Run \texttt{evaluate.py} to generate this figure.}
+    \caption{Misclassified test scans with true and predicted labels.}
+    \label{fig:misclassified}
+\end{figure}
+
+
+\section{Complete Run Inventory}
+\label{app:runs}
+Every training run performed for this paper, including the runs whose results
+were superseded. Per-run metrics for each are in the repository under the
+named file; per-image predictions are under \texttt{runs/}.
+
+\begin{table*}[t]
+\centering
+\caption{All 55 training runs. Every model is a ResNet-18; ``full FT'' is full fine-tuning and ``frozen'' trains only the classification head. $n$ is the number of seeds.}
+\label{tab:runs}
+\footnotesize
+\begin{tabular}{lllrl}
+\toprule
+Tag & Configuration & Split & $n$ & Metrics file \\
+\midrule
+\texttt{leaky} & augment, full FT & Released & 10 & \texttt{leaky\_10seed\_results.json} \\
+\texttt{dedup} & augment, full FT & Deduplicated & 10 & \texttt{dedup\_sweep\_results.json} \\
+\texttt{cv\_fold0} & augment, full FT, grouped val & Patient-disjoint fold 0 & 3 & \texttt{cv\_fold0\_results.json} \\
+\texttt{cv\_fold1} & augment, full FT, grouped val & Patient-disjoint fold 1 & 3 & \texttt{cv\_fold1\_results.json} \\
+\texttt{cv\_fold2} & augment, full FT, grouped val & Patient-disjoint fold 2 & 3 & \texttt{cv\_fold2\_results.json} \\
+\texttt{cv\_fold3} & augment, full FT, grouped val & Patient-disjoint fold 3 & 3 & \texttt{cv\_fold3\_results.json} \\
+\texttt{cv\_fold4} & augment, full FT, grouped val & Patient-disjoint fold 4 & 3 & \texttt{cv\_fold4\_results.json} \\
+\texttt{patient} & augment, full FT, ungrouped val & Pt.-disjoint, one partition & 5 & \texttt{patient\_split\_results.json (retired)} \\
+\texttt{abl\_noaug\_full} & no augment, full FT & Released & 5 & \texttt{abl\_noaug\_full\_results.json} \\
+\texttt{abl\_aug\_frozen} & augment, frozen & Released & 5 & \texttt{abl\_aug\_frozen\_results.json} \\
+\texttt{abl\_noaug\_frozen} & no augment, frozen & Released & 5 & \texttt{abl\_noaug\_frozen\_results.json} \\
+\midrule
+\multicolumn{3}{l}{\textbf{Total}} & \textbf{55} & \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+The \texttt{patient} row is the single-partition patient-disjoint experiment
+retired in Section~\ref{sec:patientsplit}; it used an ungrouped validation
+split and is listed for completeness rather than because any reported figure
+depends on it.
+
 \section*{Code and Data Availability}
-All code, the recovered patient map, the fold assignment, per-run metrics, and per-image predictions are available at \url{https://github.com/imjbassi/Brain-Tumor-MRI-Classification} and permanently archived at \url{https://doi.org/10.5281/zenodo.22721031} (DOI: \texttt{10.5281/zenodo.22721031}). The code is released under the MIT License. The repository contains the audit tooling (\texttt{audit\_leakage.py}, \texttt{match\_figshare.py}, \texttt{provenance\_sensitivity.py}, \texttt{count\_unique.py}), the split constructors (\texttt{build\_clean\_split.py}, \texttt{build\_cv\_folds.py}, \texttt{build\_patient\_split.py}), and the training and evaluation pipeline, with pinned dependency versions.
+A completed CLAIM 2024 reporting checklist accompanies this submission as supplementary material (\texttt{paper/CLAIM\_checklist.md} in the repository). All code, the recovered patient map, the fold assignment, per-run metrics, and per-image predictions are available at \url{https://github.com/imjbassi/Brain-Tumor-MRI-Classification} and permanently archived at \url{https://doi.org/10.5281/zenodo.22721031} (DOI: \texttt{10.5281/zenodo.22721031}). The code is released under the MIT License. The repository contains the audit tooling (\texttt{audit\_leakage.py}, \texttt{match\_figshare.py}, \texttt{provenance\_sensitivity.py}, \texttt{count\_unique.py}), the split constructors (\texttt{build\_clean\_split.py}, \texttt{build\_cv\_folds.py}, \texttt{build\_patient\_split.py}), and the training and evaluation pipeline, with pinned dependency versions.
 
 The image data is third-party and is not redistributed here. The aggregated four-class collection is available from Mendeley Data \citep{ghaffar2020dataset} and mirrored on Kaggle \citep{nickparvar2021dataset}; the figshare collection used for provenance recovery is \citet{cheng2015enhanced}, released under CC BY 4.0. We release only derived metadata (patient identifiers, fold assignments, file manifests) together with scripts that rebuild every split from a local copy of the source data.
 

@@ -1,0 +1,160 @@
+{
+  "released_split_f1": {
+    "glioma": {
+      "full": 0.9912756364582147,
+      "traced_only": 0.9917459896615851
+    },
+    "meningioma": {
+      "full": 0.9847220451605445,
+      "traced_only": 0.9822479106243378
+    },
+    "notumor": {
+      "full": 0.9960493714315076,
+      "traced_only": null
+    },
+    "pituitary": {
+      "full": 0.9956705343069165,
+      "traced_only": 0.9964524053356539
+    }
+  },
+  "file_properties": {
+    "glioma": {
+      "n_traced": 1541,
+      "n_untraced": 80,
+      "dims_traced": [
+        [
+          512,
+          512,
+          1541
+        ]
+      ],
+      "dims_untraced": [
+        [
+          512,
+          512,
+          80
+        ]
+      ],
+      "qtable_traced": [
+        [
+          245,
+          1354
+        ],
+        [
+          79,
+          187
+        ]
+      ],
+      "qtable_untraced": [
+        [
+          245,
+          72
+        ],
+        [
+          79,
+          8
+        ]
+      ],
+      "mean_intensity_traced": 33.13248681991151,
+      "mean_intensity_untraced": 29.45503830909729,
+      "dominant_signature_differs": false
+    },
+    "meningioma": {
+      "n_traced": 1318,
+      "n_untraced": 327,
+      "dims_traced": [
+        [
+          512,
+          512,
+          1318
+        ]
+      ],
+      "dims_untraced": [
+        [
+          512,
+          512,
+          69
+        ],
+        [
+          225,
+          225,
+          15
+        ]
+      ],
+      "qtable_traced": [
+        [
+          245,
+          679
+        ],
+        [
+          79,
+          639
+        ]
+      ],
+      "qtable_untraced": [
+        [
+          79,
+          293
+        ],
+        [
+          245,
+          29
+        ]
+      ],
+      "mean_intensity_traced": 39.913619766466894,
+      "mean_intensity_untraced": 66.25088936108698,
+      "dominant_signature_differs": true
+    },
+    "pituitary": {
+      "n_traced": 1727,
+      "n_untraced": 30,
+      "dims_traced": [
+        [
+          512,
+          512,
+          1699
+        ],
+        [
+          256,
+          256,
+          28
+        ]
+      ],
+      "dims_untraced": [
+        [
+          512,
+          512,
+          15
+        ],
+        [
+          474,
+          474,
+          2
+        ]
+      ],
+      "qtable_traced": [
+        [
+          245,
+          923
+        ],
+        [
+          79,
+          804
+        ]
+      ],
+      "qtable_untraced": [
+        [
+          79,
+          23
+        ],
+        [
+          245,
+          7
+        ]
+      ],
+      "mean_intensity_traced": 48.85197459774757,
+      "mean_intensity_untraced": 55.73089866638183,
+      "dominant_signature_differs": true
+    }
+  }
+}
