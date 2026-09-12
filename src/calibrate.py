@@ -74,6 +74,11 @@ def main():
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--model_path", type=str, required=True)
     parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--group_map", type=str, default=None,
+                        help="JSON image->group map. Required for an honest calibration on a "
+                             "patient-disjoint split: without it the validation set the "
+                             "temperature is fitted on shares patients with training, so the "
+                             "fitted temperature is not a valid instrument.")
     parser.add_argument("--seed", type=int, default=42,
                         help="Must match the seed used for training, so the validation split is identical.")
     args = parser.parse_args()
@@ -85,7 +90,13 @@ def main():
     model = get_model(num_classes=len(class_names), backbone=ckpt["model_name"]).to(device)
     model.load_state_dict(ckpt["model_state"])
 
-    _, val_loader, test_loader, _ = get_dataloaders(args.data_dir, batch_size=args.batch_size, seed=args.seed)
+    _, val_loader, test_loader, _ = get_dataloaders(args.data_dir, batch_size=args.batch_size,
+                                                     seed=args.seed, group_map=args.group_map)
+    if args.group_map:
+        print(f"Temperature will be fitted on a patient-grouped validation split ({args.group_map})")
+    else:
+        print("WARNING: ungrouped validation split; the fitted temperature is not a valid "
+              "instrument if the split shares patients with training.")
     if test_loader is None:
         raise FileNotFoundError(f"No 'Testing' subfolder found in {args.data_dir}.")
 

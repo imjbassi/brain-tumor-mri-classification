@@ -1,6 +1,6 @@
 # Brain Tumor MRI Benchmark Audit
 
-[![DOI](https://zenodo.org/badge/DOI/PLACEHOLDER_ZENODO_DOI.svg)](https://doi.org/PLACEHOLDER_ZENODO_DOI)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22721031.svg)](https://doi.org/10.5281/zenodo.22721031)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 An audit of a widely used four-class brain tumor MRI benchmark, plus the
@@ -64,6 +64,28 @@ the first patient-disjoint fold 80.3% of validation images turned out to
 belong to a patient also in training — so checkpoint selection, the LR
 schedule, early stopping and temperature calibration were all being chosen
 against the same contamination. Pass `--group_map` to `train.py`.
+
+## Citing this work
+
+If you use the recovered patient map, the patient-disjoint split, or the audit
+tooling, please cite the archived release:
+
+> Bassi, J. (2026). *Brain Tumor MRI Benchmark Audit: patient-identifier
+> recovery, leakage analysis, and a patient-disjoint split* (v1.0.0). Zenodo.
+> https://doi.org/10.5281/zenodo.22721031
+
+```bibtex
+@software{bassi2026audit,
+  author    = {Bassi, Jaiveer},
+  title     = {Brain Tumor MRI Benchmark Audit: patient-identifier recovery,
+               leakage analysis, and a patient-disjoint split},
+  version   = {v1.0.0},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.22721031},
+  url       = {https://doi.org/10.5281/zenodo.22721031}
+}
+```
 
 ## Preprint
 

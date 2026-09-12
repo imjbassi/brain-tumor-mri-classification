@@ -13,9 +13,11 @@ type: software
 authors:
   - given-names: Jaiveer
     family-names: Bassi
-    email: jbassi450@gmail.com
+    email: jaiveerbassi@yahoo.com
     orcid: "https://orcid.org/0009-0006-3633-3220"
     affiliation: "Independent Researcher, Phoenix, Arizona, USA"
+doi: "10.5281/zenodo.22721031"
+version: "v1.0.0"
 repository-code: "https://github.com/imjbassi/Brain-Tumor-MRI-Classification"
 license: MIT
 keywords:
