@@ -1,0 +1,56 @@
+{
+  "seed42": {
+    "test_accuracy": 0.9873015873015873,
+    "macro_f1": 0.9861952028016154,
+    "macro_auc": 0.9985398308232739,
+    "n_test": 1260,
+    "n_errors": 16,
+    "per_class_f1": {
+      "glioma": 0.9819376026272578,
+      "meningioma": 0.9700374531835206,
+      "notumor": 1.0,
+      "pituitary": 0.9928057553956835
+    },
+    "n_epochs_run": 12,
+    "best_val_acc": 0.9384941675503712,
+    "seed": 42,
+    "fold": 2,
+    "grouped_val": true
+  },
+  "seed0": {
+    "test_accuracy": 0.9809523809523809,
+    "macro_f1": 0.9798087933624757,
+    "macro_auc": 0.9989850378807463,
+    "n_test": 1260,
+    "n_errors": 24,
+    "per_class_f1": {
+      "glioma": 0.9822866344605475,
+      "meningioma": 0.9615384615384616,
+      "notumor": 0.9941690962099126,
+      "pituitary": 0.9812409812409812
+    },
+    "n_epochs_run": 10,
+    "best_val_acc": 0.9323308270676691,
+    "seed": 0,
+    "fold": 2,
+    "grouped_val": true
+  },
+  "seed1": {
+    "test_accuracy": 0.9761904761904762,
+    "macro_f1": 0.9745695806986849,
+    "macro_auc": 0.9991902282642634,
+    "n_test": 1260,
+    "n_errors": 30,
+    "per_class_f1": {
+      "glioma": 0.9684908789386402,
+      "meningioma": 0.9499072356215214,
+      "notumor": 0.9985315712187959,
+      "pituitary": 0.9813486370157819
+    },
+    "n_epochs_run": 19,
+    "best_val_acc": 0.9779735682819384,
+    "seed": 1,
+    "fold": 2,
+    "grouped_val": true
+  }
+}

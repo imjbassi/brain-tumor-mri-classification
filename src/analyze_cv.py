@@ -156,10 +156,14 @@ def main():
         rows = [r for r in by_seed[s].values() if r["true"] in tumor]
         rep, _ = pooled_metrics(rows, tumor)
         lo, hi = patient_bootstrap(rows, n_boot=args.n_boot)
-        tum[s] = {"n": len(rows), "accuracy": rep["accuracy"],
+        # classification_report omits "accuracy" when `labels` is a subset of
+        # the classes present, so compute it directly over these rows.
+        acc = float(np.mean([int(r["correct"]) for r in rows]))
+        tum[s] = {"n": len(rows), "accuracy": acc,
                   "macro_f1": rep["macro avg"]["f1-score"],
                   "per_class_f1": {c: rep[c]["f1-score"] for c in tumor},
                   "bootstrap_ci95": [lo, hi]}
+        rep = {"accuracy": acc, **rep}
         print(f"  seed {s}: n={len(rows)} acc={100*rep['accuracy']:.2f}% "
               f"CI [{100*lo:.2f}, {100*hi:.2f}]")
     result["tumor_only"] = tum
