@@ -24,6 +24,7 @@ that.
 |---|---|---|
 | Released | 1,311 | 99.22% ± 0.16 |
 | Deduplicated | 1,092 | 99.42% ± 0.30 |
+| Random-split 5-fold CV (control) | 6,292 | 97.92% |
 | **Patient-disjoint (5-fold CV)** | 6,292 | **95.19%** |
 | **— tumor classes only** | 4,586 | **93.68%** |
 
@@ -32,10 +33,35 @@ identical images, labels, architecture and hyperparameters: **99.12% when the
 patient appeared in training, 93.60% when it did not — a 7.3× increase in
 error rate.**
 
+### The control
+
+The headline comparison changes two things at once: how folds are formed, and
+the move from a single holdout to cross-validation. A matched random-split
+control separates them. Same 6,292 images, same per-fold per-class test sizes,
+same pipeline, same three seeds, folds assigned at random instead of by
+patient. Of the 4.03-point gap, **2.73 points (68%) is the grouping rule** and
+1.30 points (32%) is the change in evaluation design.
+
+The per-class pattern is the part worth looking at:
+
+| Class | Random folds | Patient folds | Δ |
+|---|---|---|---|
+| glioma | 96.67% | 94.42% | +2.25 |
+| meningioma | 97.29% | 89.96% | **+7.33** |
+| pituitary | 98.32% | 95.87% | +2.45 |
+| `notumor` | 99.12% | 99.24% | **−0.12** |
+
+`notumor` has no patient identity to leak, and it does not move. Every class
+that has patients does. Fold size and training-set size apply to all four
+equally, so they do not explain that pattern.
+
 Partition choice contributes **2.6× the standard deviation** that random
 seeding does (σ_partition = 2.18 pts vs σ_seed = 0.83 pts), and per-fold
-accuracy ranges from 92.3% to 98.2%. Single-split accuracies on this
-benchmark carry far wider error bars than are usually reported.
+accuracy ranges from 92.3% to 98.2%. In the random-split arm the same
+decomposition puts σ_partition at the boundary (truncated at zero) with fold
+means spanning 0.70 points, so that spread is a property of patient grouping
+rather than of cross-validation. Single-split accuracies on this benchmark
+carry far wider error bars than are usually reported.
 
 Full methodology, the corrected provenance matching, and the re-evaluation
 are in [`paper/main.pdf`](paper/main.pdf).
@@ -58,6 +84,20 @@ python src/build_patient_split.py --data_dir ./data --folds cv_folds.json --fold
 python src/run_seed_sweep.py --data_dir ./data_cv_fold0 --tag cv_fold0 --augment --seeds 42 0 1 --group_map group_map.json --fold 0
 python src/analyze_cv.py --runs_dir runs --n_folds 5
 ```
+
+To reproduce the random-split control, build the matched folds and run the
+same sweep against them, then compare the two arms:
+
+```bash
+python src/build_random_split.py --data_dir ./data --fold_idx 0 --out_dir ./data_rand_fold0
+python src/run_seed_sweep.py --data_dir ./data_rand_fold0 --tag rand_fold0 --augment --seeds 42 0 1 --group_map group_map.json --fold 0
+python src/compare_random_control.py --out paper/figures/random_control.json
+```
+
+The fold assignment is archived in `rand_folds.json`, so the control is
+reproducible without re-drawing it. `compare_random_control.py` refuses to run
+unless both arms cover the same images, which is what caught an earlier version
+of this control that drew five independent folds rather than a partition.
 
 **Group your validation split too.** This project originally did not, and on
 the first patient-disjoint fold 80.3% of validation images turned out to
@@ -313,9 +353,11 @@ pdflatex main.tex
 │   ├── build_clean_split.py      # duplicate-disjoint split
 │   ├── build_cv_folds.py         # 5-fold patient-disjoint partition -> cv_folds.json
 │   ├── build_patient_split.py    # materialize one fold (or the retired single split)
+│   ├── build_random_split.py     # matched random-split control -> rand_folds.json
 │   │
 │   ├── run_seed_sweep.py         # train+eval across seeds, writes per-image predictions
 │   ├── analyze_cv.py             # pooled CV, patient bootstrap, variance, paired test
+│   ├── compare_random_control.py # patient vs random folds, paired, patient-clustered CI
 │   ├── tumor_subset_metrics.py   # tumor-only metrics
 │   ├── prediction_agreement.py   # per-image agreement; clustered significance tests
 │   ├── calibrate.py              # temperature scaling (--group_map for honest fitting)
@@ -328,6 +370,7 @@ pdflatex main.tex
 ├── runs/                         # per-image predictions and per-run metrics
 ├── figshare_patient_map.json     # recovered patient IDs (4,586 images)
 ├── cv_folds.json                 # the patient-disjoint partition
+├── rand_folds.json               # the random-split control's partition
 ├── CITATION.cff / .zenodo.json
 ├── requirements.txt              # pinned
 └── LICENSE                       # MIT
