@@ -1,0 +1,201 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{times}
+\usepackage[margin=0.8in]{geometry}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\emergencystretch=1.5em
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+\title{\textbf{Supplementary Information}\\[4pt]
+\large Complete Patient-Level Leakage Among Traceable Images in a Widely Used Brain Tumor MRI Benchmark}
+\author{Jaiveer Bassi\\Independent Researcher, USA\\\texttt{jaiveerbassi@yahoo.com}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Supplementary Methods}
+\subsection*{Provenance sensitivity control}
+The initial provenance search used ImageNet-pretrained ResNet-18 embedding cosine similarity, histogram-equalized pixel correlation, and intersection-over-union of thresholded brain masks. A byte-identical positive control returned 1.0 under every measure but did not test robustness to transformations introduced by an aggregation pipeline. We therefore constructed transformed-positive controls from known figshare slices. JPEG re-encoding at quality 85--95 and resizing preserved cosine similarity above 0.999, whereas cropping to the brain region reduced median equalized correlation to 0.601 and embedding cosine to 0.963. After crop-normalizing both collections and searching all rotations and reflections, transformed true matches reached median cosine 0.9988 and minimum 0.9884. We used a conservative acceptance threshold of 0.98.
+
+The corrected search matched 4,586 of 5,023 tumor images. Of these, 2,956 matched after a 90-degree rotation and 1,630 after reflection plus a 90-degree rotation; none matched in the identity orientation. Three aggregated images labelled pituitary were labelled meningioma in figshare. The released \texttt{figshare\_patient\_map.json} preserves every accepted score and orientation.
+
+\subsection*{Split checks}
+Each patient-disjoint fold was generated from a single cached five-fold assignment. Each recovered patient appears in exactly one test fold. The unmatched tumor images are training-only, and no-tumor near-duplicate clusters are indivisible. Every materialized fold asserts zero group overlap and zero pixel-identical images across the training/test boundary. The random control likewise uses one cached partition rather than five independent draws; every eligible image appears in one test fold, and per-class fold sizes match the patient arm exactly.
+
+\section*{Supplementary Tables}
+\begin{table}[H]
+\centering
+\caption{Composition of the released folders.}
+\label{tab:s_dataset}
+\begin{tabular}{lrrr}
+\toprule
+Class & Training & Testing & Total \\
+\midrule
+Glioma & 1,321 & 300 & 1,621 \\
+Meningioma & 1,339 & 306 & 1,645 \\
+No tumor & 1,595 & 405 & 2,000 \\
+Pituitary & 1,457 & 300 & 1,757 \\
+\midrule
+Total & 5,712 & 1,311 & 7,023 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Crop-normalized, orientation-searched matching against figshare.}
+\label{tab:s_provenance}
+\begin{tabular}{lr}
+\toprule
+Quantity & Value \\
+\midrule
+Transformed control, median cosine & 0.9988 \\
+Transformed control, minimum cosine & 0.9884 \\
+Acceptance threshold & 0.98 \\
+Tumor images matched & 4,586/5,023 (91.3\%) \\
+Figshare patients recovered & 233/233 \\
+Matched after rotation & 2,956 \\
+Matched after reflection and rotation & 1,630 \\
+Label disagreements & 3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Exact duplication and within-dataset redundancy by class. ``Unique'' counts distinct decoded pixel contents; clusters additionally collapse embedding cosine similarity $\geq0.99$.}
+\label{tab:s_duplicates}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Class & Test duplicates & \% of test class & Files & Unique & Clusters \\
+\midrule
+Glioma & 0 & 0.0\% & 1,621 & 1,620 & 1,620 \\
+Meningioma & 106 & 34.6\% & 1,645 & 1,531 & 1,522 \\
+No tumor & 105 & 25.9\% & 2,000 & 1,706 & 1,113 \\
+Pituitary & 5 & 1.7\% & 1,757 & 1,740 & 1,739 \\
+\midrule
+Total & 216 & 16.5\% & 7,023 & 6,597 & 5,994 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Training hyperparameters used for all reported primary runs.}
+\label{tab:s_hyperparameters}
+\begin{tabular}{ll}
+\toprule
+Setting & Value \\
+\midrule
+Architecture & ImageNet-pretrained ResNet-18 \\
+Input & $224\times224$, grayscale replicated to RGB \\
+Optimizer & Adam \\
+Learning rate & $10^{-4}$ \\
+Weight decay & $10^{-4}$ \\
+Batch size & 32 \\
+Maximum epochs & 30 \\
+Early stopping patience & 5 epochs \\
+Scheduler & ReduceLROnPlateau, factor 0.5, patience 2 \\
+Augmentation & Flip; $\pm10^\circ$ rotation; 10\% brightness/contrast \\
+Primary seeds & 0, 1, 42 per fold \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Released-split baseline and ablation results. The main configuration uses ten seeds; the other ablation cells use five.}
+\label{tab:s_ablation}
+\begin{tabular}{lrrr}
+\toprule
+Augmentation & Backbone & Accuracy & SD \\
+\midrule
+On & Fully fine-tuned & 99.22\% & 0.16 pt \\
+Off & Fully fine-tuned & 98.66\% & 0.47 pt \\
+On & Frozen & 83.57\% & 0.42 pt \\
+Off & Frozen & 84.99\% & 0.31 pt \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Complete run inventory. Prediction files and per-run histories are available under \texttt{runs/}; aggregate metrics are stored in each tagged directory.}
+\label{tab:s_runs}
+\small
+\begin{tabular}{lll r}
+\toprule
+Tag & Configuration & Evaluation & $n$ \\
+\midrule
+\texttt{leaky} & Augmented, full fine-tuning & Released holdout & 10 \\
+\texttt{dedup} & Augmented, full fine-tuning & Deduplicated holdout & 10 \\
+\texttt{cv\_fold0--4} & Augmented, grouped validation & Patient-disjoint CV & 15 \\
+\texttt{rand\_fold0--4} & Augmented, grouped validation & Random-fold control & 15 \\
+\texttt{patient} & Augmented, ungrouped validation & Retired single partition & 5 \\
+\texttt{abl\_noaug\_full} & No augmentation, full fine-tuning & Released holdout & 5 \\
+\texttt{abl\_aug\_frozen} & Augmented, frozen backbone & Released holdout & 5 \\
+\texttt{abl\_noaug\_frozen} & No augmentation, frozen backbone & Released holdout & 5 \\
+\midrule
+\multicolumn{3}{l}{Total} & 70 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section*{Supplementary Figures}
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.48\textwidth}
+\includegraphics[width=\linewidth]{Figure_1.png}
+\caption{One example from each class.}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.48\textwidth}
+\includegraphics[width=\linewidth]{class_distribution.png}
+\caption{Released folder counts by class.}
+\end{subfigure}
+\caption{Dataset examples and class distribution.}
+\label{fig:s_dataset}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.48\textwidth}
+\includegraphics[width=\linewidth]{training_curves.png}
+\caption{Training and validation loss and accuracy.}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.48\textwidth}
+\includegraphics[width=\linewidth]{roc_curves.png}
+\caption{Released-split one-versus-rest ROC curves.}
+\end{subfigure}
+\caption{Released-split training dynamics and ranking performance. These results are measured under patient leakage.}
+\label{fig:s_training}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.45\textwidth}
+\includegraphics[width=\linewidth]{confusion_matrix.png}
+\caption{Normalized confusion matrix.}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.52\textwidth}
+\includegraphics[width=\linewidth]{misclassified_examples.png}
+\caption{Released-split errors.}
+\end{subfigure}
+\par\medskip
+\caption{Released-split error analysis, provided for reproducibility rather than as evidence of generalization.}
+\label{fig:s_errors}
+\end{figure}
+
+\section*{Analysis Corrections}
+Several intermediate analyses were superseded before this submission. Provenance matching was rebuilt with transformed-positive controls; patient-fold validation was made group-disjoint; correlated predictions were no longer treated as independent observations; the single-partition patient estimate was replaced by five-fold cross-validation; and the random control was rebuilt as one true partition so both arms cover the same 6,292 images. The repository history and machine-readable outputs preserve these changes. No result in the submitted manuscript relies on the discarded analyses.
+
+\end{document}
