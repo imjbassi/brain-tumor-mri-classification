@@ -1,4 +1,4 @@
-\documentclass[twocolumn]{article}
+﻿\documentclass[twocolumn]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \graphicspath{{figures/}}
@@ -42,7 +42,7 @@ Independent Researcher, USA \\
 \maketitle
 
 \begin{abstract}
-Brain tumor classification from MRI is a popular deep learning benchmark, and reported accuracies on the widely used four-class aggregated dataset routinely exceed 98\%. We audit that dataset and show the figure is substantially an artifact of how it is split. Recovering patient identifiers by content-matching the tumor images back to their figshare source, we find that 206 of 233 patients have slices in both the training and test folders; of the 906 tumor test images, 761 (84\%) could be traced, and every one of them belongs to a patient the model trains on. The dataset also contains 216 test images (16.5\%) that are pixel-identical to a training image, and holds only 6,597 distinct images among its 7,023 files. Removing the duplicate images changes little (99.22\% to 99.42\%; the 95\% interval on the difference is $[-0.03, +0.43]$ points), because it leaves every repeated patient in place. Removing the patient overlap changes a great deal: under five-fold patient-disjoint cross-validation accuracy falls to 95.19\%, and to 93.68\% on the tumor classes alone. In a paired comparison on the 761 test images traceable to a patient, scored under both regimes, accuracy is 99.12\% when the patient appeared in training and 93.60\% when it did not, a 7.3-fold increase in error rate. We also find that partition choice contributes 2.6 times the standard deviation that random seeding does, so single-split accuracies on this benchmark, including our own earlier ones, carry far wider error bars than usually reported. We release the recovered patient map and a fixed patient-disjoint partition, and we document the eight analyses that changed during this work, including a provenance result that reversed once its positive control was made adequate, a significance test invalid under clustering, and a validation split of our own that was contaminated in exactly the way the paper describes.
+Brain tumor classification from MRI is a popular deep learning benchmark, and reported accuracies on the widely used four-class aggregated dataset routinely exceed 98\%. We audit that dataset and show the figure is substantially an artifact of how it is split. Recovering patient identifiers by content-matching the tumor images back to their figshare source, we find that 206 of 233 patients have slices in both the training and test folders; of the 906 tumor test images, 761 (84\%) could be traced, and every one of them belongs to a patient the model trains on. The dataset also contains 216 test images (16.5\%) that are pixel-identical to a training image, and holds only 6,597 distinct images among its 7,023 files. Removing the duplicate images changes little (99.22\% to 99.42\%; the 95\% interval on the difference is $[-0.03, +0.43]$ points), because it leaves every repeated patient in place. Removing the patient overlap changes a great deal: under five-fold patient-disjoint cross-validation accuracy falls to 95.19\%, and to 93.68\% on the tumor classes alone. In a paired comparison on the 761 test images traceable to a patient, scored under both regimes, accuracy is 99.12\% when the patient appeared in training and 93.60\% when it did not, a 7.3-fold increase in error rate. A matched random-split control, identical in every respect but assigning folds at random rather than by patient, reaches 97.92\%, attributing roughly two thirds of the gap to patient grouping rather than to the change in evaluation design, with no effect in the one class that has no patient identity. We also find that partition choice contributes 2.6 times the standard deviation that random seeding does, and no more than seed noise once folds ignore patients, so single-split accuracies on this benchmark, including our own earlier ones, carry far wider error bars than usually reported. We release the recovered patient map and a fixed patient-disjoint partition, and we document the eight analyses that changed during this work, including a provenance result that reversed once its positive control was made adequate, a significance test invalid under clustering, and a validation split of our own that was contaminated in exactly the way the paper describes.
 \end{abstract}
 
 \vspace{0.5em}
@@ -62,6 +62,7 @@ The contribution of this paper is not a new architecture. It is an audit of a wi
 \item Using those identifiers, we show that the released split has \textbf{complete patient-level leakage}: 100\% of test images with a recoverable patient come from a patient also present in training (Section~\ref{sec:patientleak}). No evaluation on this split measures generalization to an unseen patient.
 \item We document duplicate contamination as a separate, smaller defect: 16.5\% of test images are pixel-identical to a training image (Section~\ref{sec:contamination}), and the dataset's 7,023 files contain 6,597 distinct images (Section~\ref{sec:unique}).
 \item We re-evaluate the same pipeline under five-fold patient-disjoint cross-validation built from the recovered identifiers (Section~\ref{sec:patientsplit}). Accuracy falls from 99.22\% to 95.19\%, and to 93.68\% on the tumor classes alone; a paired comparison on the same 761 traceable images gives a 7.3-fold increase in error rate. This is the paper's main experimental result.
+\item We run a matched random-split control to separate the grouping rule from the change in evaluation design: the same five-fold cross-validation over the same 6,292 images with the same per-fold class sizes, but folds assigned at random (Section~\ref{sec:patientsplit}). It reaches 97.92\%, placing 2.73 of the 4.03-point gap on patient grouping, and moves \texttt{notumor}, the one class with no patient identity, by $-0.12$ points.
 \item We show that deduplication alone does not change accuracy, and explain why: it removes repeated images while leaving every repeated patient in place (Sections~\ref{sec:dedup} and~\ref{sec:patientleak}). We also show the duplicated images are misclassified twice as often as the rest, so they were never being memorized.
 \item We report the baseline completely rather than as a headline number: per-class metrics, confusion matrix, ROC-AUC, ten-seed variance, a five-seed-per-cell ablation, and temperature-scaled calibration (Section~\ref{sec:baseline} and Appendix~\ref{app:baseline}).
 \end{itemize}
@@ -454,7 +455,48 @@ Second, we asked whether traced and untraced images differ at all. For meningiom
     \label{fig:cv_paired}
 \end{figure}
 
+\paragraph{A matched random-split control.} The paired comparison isolates the grouping rule for the 761 traced test images, but the headline comparison, 95.19\% against 99.22\%, still changes two things at once: how folds are formed, and the move from a single 5,712/1,311 holdout to five-fold cross-validation over a pooled population. A reader is entitled to ask which of the two moved the number. We ran the control that separates them: five-fold cross-validation with test images assigned at random, ignoring patient identity, holding everything else fixed. Same 6,292 eligible images, same per-fold per-class test counts read off the patient folds, same handling of untraced images, same pipeline, same patient-grouped validation split, same three seeds. Fifteen additional runs, and the only thing that varies is whether a patient's slices may be separated.
+
+Two details make it a control rather than a second experiment. Pixel-duplicate images are assigned as a unit, because in the patient arm duplicated slices cannot straddle the boundary anyway (they belong to one patient, and patients do not cross), so letting them cross here would stack duplicate leakage on top of patient leakage and confound exactly the contrast we are trying to measure. And the random assignment is a genuine partition computed once, not five independent draws, so each image is a test image exactly once in both arms and the two pooled populations are the same 6,292 images. That makes the arms comparable image by image; the interval below resamples patients, since the difference is a within-patient quantity.
+
+Table~\ref{tab:randcontrol} gives the result. Random-split cross-validation reaches 97.92\%, patient-disjoint 95.19\%, a paired difference of 2.73 points (95\% CI 1.75 to 3.89, patient-clustered) and 2.31 times the error rate. On tumor classes alone the difference is 3.79 points (95\% CI 2.42 to 5.36). Of the 4.03-point gap between the released split and our headline figure, 2.73 points (68\%) is the grouping rule and 1.30 points (32\%) is the change in evaluation design. The design change is real and we do not hide it: cross-validated folds train on about 5,470 images rather than 5,712, and the pooled population excludes the untraced remainder and the deduplicated \texttt{notumor} redundancy. But it is the smaller term, and the effect this paper is about survives it with room to spare.
+
+The per-class pattern is the part we find most persuasive, because one class provides a null. \texttt{notumor} has no patient identity to leak; it is grouped only by near-duplicate cluster, and it moves by $-0.12$ points between the arms, which is nothing. Every class that does have patient structure moves, and meningioma, the class whose collapse under patient-disjoint evaluation is the paper's sharpest single finding, moves most at 7.33 points. An effect that appears in exactly the classes with patients and vanishes in the one without is difficult to explain as an artifact of fold size or training-set size, since those apply to all four classes equally.
+
+\begin{table}[H]
+\centering
+\caption{Matched random-split control. Both arms are five-fold cross-validation over the same 6,292 images with the same per-fold per-class test sizes, the same pipeline and the same three seeds; only the fold-assignment rule differs. Differences are paired, with patient-clustered bootstrap intervals. \texttt{notumor} has no patient identity and serves as a null. $^{\dagger}$Boundary estimate: the between-fold mean square fell below the within-fold mean square, so the variance component is truncated at zero.}
+\label{tab:randcontrol}
+\small
+\begin{tabular}{lrrr}
+\toprule
+ & Random folds & Patient folds & Difference \\
+\midrule
+All four classes (6,292)   & 97.92\% & 95.19\% & 2.73 [1.75, 3.89] \\
+Tumor only (4,586)         & 97.47\% & 93.68\% & 3.79 [2.42, 5.36] \\
+\midrule
+glioma (1,541)             & 96.67\% & 94.42\% & 2.25 \\
+meningioma (1,318)         & 97.29\% & 89.96\% & 7.33 \\
+pituitary (1,727)          & 98.32\% & 95.87\% & 2.45 \\
+\texttt{notumor} (1,706)   & 99.12\% & 99.24\% & $-0.12$ \\
+\midrule
+Fold-to-fold range         & 0.70 pts & 5.86 pts & \\
+$\hat\sigma_{\text{partition}}$ & 0.00 pts$^{\dagger}$ & 2.18 pts & \\
+$\hat\sigma_{\text{seed}}$ & 0.87 pts & 0.83 pts & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \genfigure{rand_control.png}{0.98\linewidth}{Run \texttt{make\_cv\_figures.py} to generate this figure.}
+    \caption{The matched random-split control. Left: per-class accuracy under random and patient-grouped folds, with the paired difference above each pair. The three classes with patient identity all move; \texttt{notumor}, which has none, does not. Right: per-fold accuracy in each arm. Folds that ignore patients are interchangeable, folds that respect them are not.}
+    \label{fig:rand_control}
+\end{figure}
+
 \paragraph{Which uncertainty dominates.} Running several seeds on several partitions lets us separate two sources of variation that a single experiment confounds. A one-way random-effects decomposition over the $5 \times 3$ table of per-fold accuracies gives a seed component of $\hat\sigma_{\text{seed}} = 0.83$ points (10 df) and a partition component of $\hat\sigma_{\text{partition}} = 2.18$ points (4 df). Partition choice contributes 2.6 times the standard deviation that random initialization does. Fold means range from 92.3\% to 98.2\%, a spread of nearly six points depending on which patients happen to land in the test fold (Figure~\ref{fig:cv_spread}).
+
+The random-split control shows that this spread is about patients specifically, not about five-fold cross-validation in general. Run the identical decomposition on the random arm and the partition component estimates to $\hat\sigma_{\text{partition}} = 0.00$ points, with fold means spanning 0.70 points instead of 5.86, while the seed component is essentially unchanged at 0.87 against 0.83. The zero is a boundary estimate: the between-fold mean square came in below the within-fold mean square, so the method of moments returns a negative variance that we truncate at zero. It should be read as saying that random folds differ by no more than seed noise alone would produce, not as a claim that the true partition variance is exactly zero. Folds of the same size drawn from the same images, differing only in that they ignore patient identity, are interchangeable; folds that respect patient identity are not. The partition variance that dominates the patient-disjoint arm is the variance of which \emph{patients} you happened to hold out, which is also the variance a prospective study would face and a single random split silently conceals.
 
 \begin{figure}[H]
     \centering
@@ -465,7 +507,7 @@ Second, we asked whether traced and untraced images differ at all. For meningiom
 
 This has a direct consequence for how any single-split number on this dataset should be read, including an earlier version of our own. Combining the two components, a single run on a single random patient split carries a standard deviation of about 2.3 points. We previously reported a patient-disjoint result of 94.75\% $\pm$ 0.80 from one partition; that interval was seed variance with the partition held fixed, which is the smaller of the two terms, and it understated the real uncertainty by roughly a factor of three. We retire that figure in favour of the cross-validated estimate. The same caution applies to every single-split accuracy in Table~\ref{tab:comparison}, ours included: at this level, differences of one or two points between methods evaluated on one partition each are not interpretable.
 
-\paragraph{What this does and does not establish.} The result is one five-fold partition of one dataset with one architecture, not a claim about brain tumor classification in general, and the bootstrap interval is conditional on the training procedure rather than propagating training variability. The four-class figure mixes a patient-disjoint tumor evaluation with a \texttt{notumor} class grouped only by near-duplicate cluster, which is why we report the tumor-only number alongside it. What the result does establish, with a comfortable margin and in a paired design that controls for everything else, is that the near-ceiling accuracy this benchmark is known for depends substantially on evaluating models on patients they were trained on. The honest figure for this pipeline on unseen patients is in the low-to-mid nineties, not 99\%.
+\paragraph{What this does and does not establish.} The result is one five-fold partition of one dataset with one architecture, not a claim about brain tumor classification in general, and the bootstrap interval is conditional on the training procedure rather than propagating training variability. The four-class figure mixes a patient-disjoint tumor evaluation with a \texttt{notumor} class grouped only by near-duplicate cluster, which is why we report the tumor-only number alongside it. What the result does establish, with a comfortable margin and in a paired design that controls for everything else, is that the near-ceiling accuracy this benchmark is known for depends substantially on evaluating models on patients they were trained on. The matched random-split control attributes roughly two thirds of the gap to the grouping rule rather than to the change in evaluation design, and finds no effect in the one class that has no patients to leak. The honest figure for this pipeline on unseen patients is in the low-to-mid nineties, not 99\%.
 
 \section{What Deduplication Does Not Fix}
 \label{sec:dedup}
@@ -765,7 +807,7 @@ Two of these, the validation split and the paired comparison, affected numbers r
 \label{sec:limitations}
 The most important caveat is the one the patient-disjoint experiment only partly addresses: even a patient-disjoint split drawn from this collection is still a single-source, same-distribution evaluation. All of the imaging conventions, scanners, and preprocessing are shared between the two sides of the boundary. Removing patient overlap makes the benchmark measure something real, but what it measures is generalization to a new patient within the same collection, not generalization to a new hospital. Multi-institution evaluation remains the single most valuable next step, and nothing in this paper substitutes for it.
 
-A related limit on that experiment is the \texttt{notumor} class. It has no recoverable patient identifiers, so it cannot be patient-separated, and our patient-disjoint split handles it by deduplication and random assignment. Any residual patient overlap within \texttt{notumor} is therefore unmeasured, which is precisely why Section~\ref{sec:patientsplit} reports the three tumor classes separately: that subset is the number with no asterisk attached. A further 437 tumor images did not match figshare and were assigned to training only, so they cannot contaminate the test set, but they also mean our patient recovery is not exhaustive.
+A related limit on that experiment is the \texttt{notumor} class. It has no recoverable patient identifiers, so it cannot be patient-separated, and our patient-disjoint split handles it by deduplication and random assignment. Any residual patient overlap within \texttt{notumor} is therefore unmeasured, which is precisely why Section~\ref{sec:patientsplit} reports the three tumor classes separately: that subset is the number with no asterisk attached. The random-split control bounds how much this could matter. \texttt{notumor} accuracy is statistically indistinguishable between random and patient-grouped folds, moving by $-0.12$ points where the tumor classes move by 2.25 to 7.33, which is what one expects if the class carries little patient structure for grouping to remove. That is evidence about the size of the residual, not proof of its absence. A further 437 tumor images did not match figshare and were assigned to training only, so they cannot contaminate the test set, but they also mean our patient recovery is not exhaustive.
 
 Turning from the split to the measurements made on it, we now have an estimate of run-to-run noise (Section~\ref{sec:variance}), and it is not negligible: test accuracy across ten seeds ranged from 98.93\% to 99.47\%, a standard deviation of 0.16 points. That means a reported accuracy anywhere in roughly that range from a single run, ours or anyone else's, is consistent with the same underlying model and training recipe. Table~\ref{tab:comparison}'s comparison against other single-run numbers from the literature should be read with this in mind: at this accuracy level, the differences between competing methods are frequently smaller than the seed-to-seed noise of any one of them, and a fair comparison would need a seed sweep on every method being compared, not just this one.
 
@@ -863,7 +905,7 @@ named file; per-image predictions are under \texttt{runs/}.
 
 \begin{table*}[t]
 \centering
-\caption{All 55 training runs. Every model is a ResNet-18; ``full FT'' is full fine-tuning and ``frozen'' trains only the classification head. $n$ is the number of seeds.}
+\caption{All 70 training runs. Every model is a ResNet-18; ``full FT'' is full fine-tuning and ``frozen'' trains only the classification head. $n$ is the number of seeds.}
 \label{tab:runs}
 \footnotesize
 \begin{tabular}{lllrl}
@@ -877,12 +919,17 @@ Tag & Configuration & Split & $n$ & Metrics file \\
 \texttt{cv\_fold2} & augment, full FT, grouped val & Patient-disjoint fold 2 & 3 & \texttt{cv\_fold2\_results.json} \\
 \texttt{cv\_fold3} & augment, full FT, grouped val & Patient-disjoint fold 3 & 3 & \texttt{cv\_fold3\_results.json} \\
 \texttt{cv\_fold4} & augment, full FT, grouped val & Patient-disjoint fold 4 & 3 & \texttt{cv\_fold4\_results.json} \\
+\texttt{rand\_fold0} & augment, full FT, grouped val & Random-split control fold 0 & 3 & \texttt{rand\_fold0\_results.json} \\
+\texttt{rand\_fold1} & augment, full FT, grouped val & Random-split control fold 1 & 3 & \texttt{rand\_fold1\_results.json} \\
+\texttt{rand\_fold2} & augment, full FT, grouped val & Random-split control fold 2 & 3 & \texttt{rand\_fold2\_results.json} \\
+\texttt{rand\_fold3} & augment, full FT, grouped val & Random-split control fold 3 & 3 & \texttt{rand\_fold3\_results.json} \\
+\texttt{rand\_fold4} & augment, full FT, grouped val & Random-split control fold 4 & 3 & \texttt{rand\_fold4\_results.json} \\
 \texttt{patient} & augment, full FT, ungrouped val & Pt.-disjoint, one partition & 5 & \texttt{patient\_split\_results.json (retired)} \\
 \texttt{abl\_noaug\_full} & no augment, full FT & Released & 5 & \texttt{abl\_noaug\_full\_results.json} \\
 \texttt{abl\_aug\_frozen} & augment, frozen & Released & 5 & \texttt{abl\_aug\_frozen\_results.json} \\
 \texttt{abl\_noaug\_frozen} & no augment, frozen & Released & 5 & \texttt{abl\_noaug\_frozen\_results.json} \\
 \midrule
-\multicolumn{3}{l}{\textbf{Total}} & \textbf{55} & \\
+\multicolumn{3}{l}{\textbf{Total}} & \textbf{70} & \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -896,7 +943,7 @@ depends on it.
 An earlier version of this work was posted as \emph{Brain Tumor Classification with Pretrained CNNs in PyTorch} (DOI: \texttt{10.13140/RG.2.2.21638.28484}). That version predates the dataset audit reported here. It presents the released-split accuracy as a result rather than as a measurement artifact, and it contains none of the provenance recovery, the leakage analysis, or the patient-disjoint evaluation. It is superseded by this manuscript, and the figures it reports should not be cited.
 
 \section*{Code and Data Availability}
-A completed CLAIM 2024 reporting checklist accompanies this submission as supplementary material (\texttt{paper/CLAIM\_checklist.md} in the repository). All code, the recovered patient map, the fold assignment, per-run metrics, and per-image predictions are available at \url{https://github.com/imjbassi/Brain-Tumor-MRI-Classification} and permanently archived at \url{https://doi.org/10.5281/zenodo.22728198} (DOI: \texttt{10.5281/zenodo.22728198}). That deposit is release v1.1.0, which is the exact state of the code and artifacts from which every number in this paper was produced. The code is released under the MIT License. The repository contains the audit tooling (\texttt{audit\_leakage.py}, \texttt{match\_figshare.py}, \texttt{provenance\_sensitivity.py}, \texttt{count\_unique.py}), the split constructors (\texttt{build\_clean\_split.py}, \texttt{build\_cv\_folds.py}, \texttt{build\_patient\_split.py}), and the training and evaluation pipeline, with pinned dependency versions.
+A completed CLAIM 2024 reporting checklist accompanies this submission as supplementary material (\texttt{paper/CLAIM\_checklist.md} in the repository). All code, the recovered patient map, the fold assignment, per-run metrics, and per-image predictions are available at \url{https://github.com/imjbassi/Brain-Tumor-MRI-Classification} and permanently archived at \url{https://doi.org/10.5281/zenodo.22728198} (DOI: \texttt{10.5281/zenodo.22728198}). That deposit is release v1.1.0, which is the exact state of the code and artifacts from which every number in this paper was produced. The code is released under the MIT License. The repository contains the audit tooling (\texttt{audit\_leakage.py}, \texttt{match\_figshare.py}, \texttt{provenance\_sensitivity.py}, \texttt{count\_unique.py}), the split constructors (\texttt{build\_clean\_split.py}, \texttt{build\_cv\_folds.py}, \texttt{build\_patient\_split.py}, \texttt{build\_random\_split.py}), the analysis scripts that produce the main result and its control (\texttt{analyze\_cv.py}, \texttt{compare\_random\_control.py}, \texttt{prediction\_agreement.py}, \texttt{tumor\_subset\_metrics.py}), and the training and evaluation pipeline, with pinned dependency versions. The random-split control's fold assignment is archived as \texttt{rand\_folds.json}, so it can be reproduced exactly without re-drawing it.
 
 The image data is third-party and is not redistributed here. The aggregated four-class collection is available from Mendeley Data \citep{ghaffar2020dataset} and mirrored on Kaggle \citep{nickparvar2021dataset}; the figshare collection used for provenance recovery is \citet{cheng2015enhanced}, released under CC BY 4.0. We release only derived metadata (patient identifiers, fold assignments, file manifests) together with scripts that rebuild every split from a local copy of the source data.
 

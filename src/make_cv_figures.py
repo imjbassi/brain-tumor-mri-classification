@@ -152,8 +152,79 @@ def fig_paired(cv):
     print(f"wrote {out}")
 
 
+def fig_rand_control():
+    """The matched random-split control, per class and by fold spread.
+
+    Left panel is the point of the control: the classes that have patients all
+    move, and notumor, which has none, does not. Right panel is the second
+    finding, that fold-to-fold variance is a property of patient grouping and
+    not of cross-validation.
+    """
+    path = os.path.join(FIG, "random_control.json")
+    if not os.path.exists(path):
+        print(f"skipping rand_control.png: {path} not found")
+        return
+    rc = json.load(open(path))
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.6, 4.4),
+                                   gridspec_kw={"width_ratios": [1.35, 1]})
+
+    order = ["glioma", "meningioma", "pituitary", "notumor"]
+    x = np.arange(len(order))
+    w = 0.38
+    rand = [100 * rc["per_class"][c]["acc_random"] for c in order]
+    pat = [100 * rc["per_class"][c]["acc_patient"] for c in order]
+    ax1.bar(x - w / 2, rand, w, label="Random folds", color=GREY)
+    ax1.bar(x + w / 2, pat, w, label="Patient folds", color=BLUE)
+    for i, c in enumerate(order):
+        d = 100 * rc["per_class"][c]["difference"]
+        ax1.text(i, max(rand[i], pat[i]) + 0.45, f"{d:+.2f}", ha="center",
+                 fontsize=9.5, fontweight="bold",
+                 color=RED if abs(d) > 1 else GREY)
+    # notumor has no patient identity, so it is the null.
+    ax1.axvspan(len(order) - 1.5, len(order) - 0.5, color=ORANGE, alpha=0.09,
+                zorder=0)
+    ax1.text(len(order) - 1, 87.4, "no patients\nto separate", ha="center",
+             fontsize=8.5, color=ORANGE, style="italic")
+    ax1.set_xticks(x)
+    ax1.set_xticklabels([c if c != "notumor" else "notumor" for c in order])
+    ax1.set_ylim(86, 101.4)
+    ax1.set_ylabel("Accuracy (%)")
+    ax1.set_title("Only the classes with patients move")
+    ax1.legend(loc="lower left", fontsize=9)
+    ax1.grid(axis="y", alpha=0.3)
+
+    fs = rc.get("fold_spread", {})
+    if fs:
+        for j, (tag, color, label) in enumerate(
+                [("random", GREY, "Random folds"), ("patient", BLUE, "Patient folds")]):
+            means = [100 * m for m in fs[tag]["fold_means"]]
+            ax2.scatter([j] * len(means), means, s=62, color=color, zorder=3,
+                        label=label)
+            ax2.plot([j - 0.16, j + 0.16], [np.mean(means)] * 2, color=color, lw=2)
+            # Axis-fraction y so the label cannot fall outside the view.
+            ax2.text(j, 0.035, f"range {max(means)-min(means):.2f} pts",
+                     transform=ax2.get_xaxis_transform(), ha="center",
+                     fontsize=9, color=color, fontweight="bold")
+        allm = [100 * m for t in ("random", "patient") for m in fs[t]["fold_means"]]
+        ax2.set_ylim(min(allm) - 1.3, max(allm) + 0.5)   # room for the labels
+        ax2.set_xticks([0, 1])
+        ax2.set_xticklabels(["Random", "By patient"])
+        ax2.set_xlim(-0.5, 1.5)
+        ax2.set_ylabel("Per-fold accuracy (%)")
+        ax2.set_title("Fold spread is about patients")
+        ax2.grid(axis="y", alpha=0.3)
+
+    fig.tight_layout()
+    out = os.path.join(FIG, "rand_control.png")
+    fig.savefig(out, dpi=200)
+    plt.close(fig)
+    print(f"wrote {out}")
+
+
 if __name__ == "__main__":
     cv = load()
     fig_per_class(cv)
     fig_fold_spread(cv)
     fig_paired(cv)
+    fig_rand_control()
