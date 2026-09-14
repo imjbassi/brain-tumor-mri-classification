@@ -137,6 +137,10 @@
     }
   },
   "pooled_mean_over_replicates": 0.9518965882602246,
+  "pooled_bootstrap_ci95": [
+    0.9358018364090289,
+    0.9659271392667075
+  ],
   "tumor_only": {
     "0": {
       "n": 4586,

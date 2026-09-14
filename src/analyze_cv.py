@@ -87,6 +87,40 @@ def patient_bootstrap(rows, n_boot=10000, seed=0):
     return float(np.percentile(out, 2.5)), float(np.percentile(out, 97.5))
 
 
+def pooled_patient_bootstrap(by_seed, n_boot=10000, seed=0):
+    """Cluster bootstrap for the accuracy averaged across aligned seeds.
+
+    Each patient or no-tumor cluster is resampled once, while its images and
+    all seed predictions stay together. This yields one interval for the
+    pooled multi-seed estimate instead of quoting the envelope of separate
+    seed-specific intervals.
+    """
+    seeds = sorted(by_seed, key=lambda s: int(s))
+    common = sorted(set.intersection(*[set(by_seed[s]) for s in seeds]))
+    by_group = defaultdict(list)
+    for base in common:
+        row = by_seed[seeds[0]][base]
+        group = row["group"] or base
+        by_group[group].append(base)
+
+    groups = list(by_group)
+    correct = np.array([
+        sum(int(by_seed[s][base]["correct"])
+            for s in seeds for base in by_group[group])
+        for group in groups
+    ], dtype=float)
+    totals = np.array([
+        len(seeds) * len(by_group[group]) for group in groups
+    ], dtype=float)
+
+    rng = np.random.default_rng(seed)
+    draws = np.empty(n_boot)
+    for b in range(n_boot):
+        idx = rng.integers(0, len(groups), len(groups))
+        draws[b] = correct[idx].sum() / totals[idx].sum()
+    return float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5))
+
+
 def variance_components(acc_by_fold_seed, n_folds, seeds):
     """One-way random-effects ANOVA: acc[f,s] = mu + F_f + eps.
 
@@ -160,6 +194,11 @@ def main():
     print(f"  mean over replicates: {100*accs.mean():.2f}% "
           f"(spread {100*accs.min():.2f}-{100*accs.max():.2f})")
     result["pooled_mean_over_replicates"] = float(accs.mean())
+    pooled_lo, pooled_hi = pooled_patient_bootstrap(
+        by_seed, n_boot=args.n_boot, seed=0)
+    result["pooled_bootstrap_ci95"] = [pooled_lo, pooled_hi]
+    print(f"  pooled patient-bootstrap 95% CI: "
+          f"[{100*pooled_lo:.2f}, {100*pooled_hi:.2f}]")
 
     # ---- tumor-only ---------------------------------------------------------
     tumor = [c for c in class_names if c != "notumor"]
