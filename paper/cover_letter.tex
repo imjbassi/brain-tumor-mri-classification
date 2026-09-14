@@ -1,0 +1,27 @@
+\documentclass[11pt]{letter}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage[hidelinks]{hyperref}
+\signature{Jaiveer Bassi\\Independent Researcher\\\href{mailto:jaiveerbassi@yahoo.com}{jaiveerbassi@yahoo.com}}
+\address{Jaiveer Bassi\\Independent Researcher, USA\\\href{mailto:jaiveerbassi@yahoo.com}{jaiveerbassi@yahoo.com}}
+\date{\today}
+
+\begin{document}
+\begin{letter}{Editors\\\textit{Scientific Reports}}
+\opening{Dear Editors,}
+
+Please consider the Article ``Complete Patient-Level Leakage Among Traceable Images in a Widely Used Brain Tumor MRI Benchmark'' for publication in \textit{Scientific Reports}.
+
+The manuscript audits a widely used four-class brain MRI benchmark whose aggregated release discarded patient identity. By matching 4,586 tumor images back to their figshare source, I recover subject identifiers and show that every traceable tumor test image belongs to a patient represented in training. The paper then re-evaluates the same pipeline under patient-disjoint cross-validation and includes a matched random-fold control over the identical 6,292-image population. The control attributes 2.73 of the 4.03 percentage-point performance gap to patient grouping, while the class without patient identifiers provides an internal null. The work also distinguishes patient leakage from exact-image duplication, which does not explain the near-ceiling result.
+
+The study is appropriate for \textit{Scientific Reports} because it presents a technically validated correction to a public medical-imaging benchmark, quantifies the effect with paired and grouped analyses, and releases the patient map, immutable folds, predictions, and complete analysis code. The finding affects the interpretation and reproducibility of a broad body of transfer-learning work while remaining carefully limited to this dataset and pipeline.
+
+This manuscript is not under consideration elsewhere. An earlier preprint by the same author used the released split and predates the audit; it is identified in the submission and is superseded by this work. I have had no prior discussions about this manuscript with a \textit{Scientific Reports} Editorial Board Member. I have no competing interests and no reviewers to exclude. The work is a secondary analysis of public, de-identified data. AI assistance is disclosed in the manuscript, and I take full responsibility for the study and submitted materials.
+
+The exact manuscript code and artifacts are public in GitHub release v1.2.0 and the corresponding Zenodo archive (DOI: 10.5281/zenodo.22737747).
+
+Thank you for your consideration.
+
+\closing{Sincerely,}
+\end{letter}
+\end{document}
