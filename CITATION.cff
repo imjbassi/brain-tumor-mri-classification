@@ -16,8 +16,8 @@ authors:
     email: jaiveerbassi@yahoo.com
     orcid: "https://orcid.org/0009-0006-3633-3220"
     affiliation: "Independent Researcher, USA"
-doi: "10.5281/zenodo.22737747"
-version: "v1.2.0"
+doi: "10.5281/zenodo.22754870"
+version: "v1.2.1"
 repository-code: "https://github.com/imjbassi/Brain-Tumor-MRI-Classification"
 license: MIT
 keywords:
