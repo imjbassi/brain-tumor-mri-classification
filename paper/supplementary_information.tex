@@ -5,6 +5,7 @@
 \usepackage{times}
 \usepackage[margin=0.8in]{geometry}
 \usepackage{booktabs}
+\usepackage{longtable}
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{float}
@@ -101,7 +102,7 @@ Architecture & ImageNet-pretrained ResNet-18 \\
 Input & $224\times224$, grayscale replicated to RGB \\
 Optimizer & Adam \\
 Learning rate & $10^{-4}$ \\
-Weight decay & $10^{-4}$ \\
+Weight decay & 0 (Adam default) \\
 Batch size & 32 \\
 Maximum epochs & 30 \\
 Early stopping patience & 5 epochs \\
@@ -111,6 +112,35 @@ Primary seeds & 0, 1, 42 per fold \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{longtable}{p{0.18\textwidth}p{0.35\textwidth}p{0.37\textwidth}}
+\caption{Analyses corrected or superseded during this work. Every result in the submitted manuscript reflects the right-hand column.}
+\label{tab:s_corrections}\\
+\toprule
+Analysis & Earlier problem & Submitted analysis \\
+\midrule
+\endfirsthead
+\toprule
+Analysis & Earlier problem & Submitted analysis \\
+\midrule
+\endhead
+Provenance & An identical-file positive control did not test robustness to cropping or orientation changes, producing a false-negative source trace. & Transformed-positive controls motivated crop-normalized, orientation-aware matching, which recovered 4,586 patient identifiers. \\
+\addlinespace
+Validation split & The initial train/validation division was not grouped by patient, contaminating checkpoint selection, early stopping, and temperature fitting. & All cross-validation runs use group-disjoint validation by recovered patient or no-tumor near-duplicate cluster. \\
+\addlinespace
+Duplicate errors & A Fisher test treated predictions from ten models on the same images as independent. & Model-level paired and image-level permutation tests preserve correlation; neither reached conventional significance. \\
+\addlinespace
+Deduplication bound & A bound on inflation was inferred from a $p$-value. & The reported 95\% interval for the accuracy difference is -0.03 to +0.43 points. \\
+\addlinespace
+Variance claim & Seed variance was compared with an inapplicable binomial floor. & That claim was withdrawn and replaced by per-image agreement and fold-by-seed variance analyses. \\
+\addlinespace
+Patient estimate & A single partition gave 94.75\% $\pm$ 0.80, where the interval reflected seeds but held the partition fixed. & Five-fold patient-disjoint cross-validation gives 95.19\%; partition variation (2.18 points) exceeds seed variation (0.83 points). \\
+\addlinespace
+Paired comparison & The initial 1,061-image comparison included 300 no-tumor images without patient identifiers. & Restriction to 761 images with recovered identifiers gives 99.12\% versus 93.60\% and a 7.3-fold error-rate ratio. \\
+\addlinespace
+Random control & Independently generated folds did not form one matched partition of the evaluation population. & One cached five-fold random partition matches patient-fold class counts and covers the same 6,292 images exactly once per seed. \\
+\bottomrule
+\end{longtable}
 
 \begin{table}[H]
 \centering
@@ -194,8 +224,5 @@ Tag & Configuration & Evaluation & $n$ \\
 \caption{Released-split error analysis, provided for reproducibility rather than as evidence of generalization.}
 \label{fig:s_errors}
 \end{figure}
-
-\section*{Analysis Corrections}
-Several intermediate analyses were superseded before this submission. Provenance matching was rebuilt with transformed-positive controls; patient-fold validation was made group-disjoint; correlated predictions were no longer treated as independent observations; the single-partition patient estimate was replaced by five-fold cross-validation; and the random control was rebuilt as one true partition so both arms cover the same 6,292 images. The repository history and machine-readable outputs preserve these changes. No result in the submitted manuscript relies on the discarded analyses.
 
 \end{document}
