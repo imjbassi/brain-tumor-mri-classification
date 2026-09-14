@@ -60,7 +60,7 @@ Distinct pixel contents & 6,597 \\
 Pixel-identical test images in training & 216/1,311 (16.5\%) \\
 Recovered figshare identifiers & 4,586/5,023 (91.3\%) \\
 Traceable tumor test images & 761/906 (84.0\%) \\
-Traceable test images whose patient is in training & 761/761 (100\%) \\
+\shortstack[l]{Traceable tumor test images\\with patient represented in training} & 761/761 (100\%) \\
 Patients appearing in both folders & 206/233 (88.4\%) \\
 \bottomrule
 \end{tabular}
@@ -76,13 +76,13 @@ Patients appearing in both folders & 206/233 (88.4\%) \\
 \subsection{Patient-disjoint evaluation lowers accuracy}
 We assigned each recovered patient to exactly one of five folds and trained three aligned random seeds per fold. Unmatched tumor images remained training-only. Because no patient identifiers exist for the no-tumor class, we grouped that class by near-duplicate cluster; the tumor-only result is reported separately as the evaluation with complete patient grouping. Training and validation were also group-disjoint. Every eligible image was tested exactly once per seed, and no fold contained patient or exact-pixel overlap across its training and test boundary.
 
-Pooled patient-disjoint accuracy was 95.19\% across 6,292 images (seed replicates 94.91\%, 95.42\%, and 95.23\%; 95\% patient-clustered bootstrap interval 93.58--96.59\%). On the 4,586 tumor images, accuracy was 93.68\% and macro-F1 was 0.935. Meningioma was weakest (mean F1 0.900), followed by glioma (0.945) and pituitary tumor (0.960).
+Pooled patient-disjoint accuracy was 95.19\% across 6,292 images (seed replicates 94.91\%, 95.42\%, and 95.23\%; 95\% patient-clustered bootstrap interval 93.58--96.59\%). On the 4,586 tumor images, accuracy was 93.68\% and macro-F1 was 0.935. Across the three complete seed replicates, meningioma was weakest (mean F1 0.898), followed by glioma (0.943) and pituitary tumor (0.959; Figure~\ref{fig:heterogeneity}a).
 
 The cleanest comparison uses the 761 traceable tumor test images scored under both regimes. Released-split models, which trained on each patient's other slices, achieved 99.12\%; patient-disjoint models achieved 93.60\%. The absolute difference was 5.52 percentage points and the error rate was 7.3 times higher without patient overlap (Figure~\ref{fig:controls}a).
 
 The headline comparison still changes both grouping and evaluation design. We therefore built a five-fold random partition over the same 6,292 images, preserving each patient-fold's class counts, model pipeline, group-disjoint validation, and three seeds. Pixel-identical images were kept together so duplicate leakage could not confound the comparison. Random-fold cross-validation reached 97.92\%, 2.73 points above patient-disjoint cross-validation (95\% patient-clustered bootstrap interval 1.75--3.89; Table~\ref{tab:performance}). On the 4,586 tumor images, the corresponding accuracies were 97.47\% and 93.68\%, a 3.79-point difference (95\% interval 2.42--5.36). Thus, 68\% of the 4.03-point overall gap between released and patient-disjoint evaluation was attributable to the grouping rule and 32\% to the remaining design changes.
 
-The per-class pattern supplies a control specific to patient identity. Random grouping improved all three classes with recovered patient identifiers, most strongly meningioma (+7.33 points). No-tumor accuracy changed by only -0.12 points even though its grouping was also relaxed: near-duplicate clusters were indivisible in the patient arm, whereas the random arm kept only exact-pixel groups together (Figure~\ref{fig:controls}b). It is therefore not an unchanged-grouping null; rather, the negligible change despite relaxed proxy grouping strengthens the contrast with the patient-identified classes. Patient-fold means spanned 5.86 points, compared with 0.70 points for random folds. A random-effects decomposition estimated patient-partition variation at 2.18 points and seed variation at 0.83 points; for random folds, the partition component reached the zero boundary while seed variation remained 0.87 points. The zero is a truncated method-of-moments estimate, not proof of literal zero variance.
+The per-class pattern supplies a control specific to patient identity. Random grouping improved all three classes with recovered patient identifiers, most strongly meningioma (+7.33 points). No-tumor accuracy changed by only -0.12 points even though its grouping was also relaxed: near-duplicate clusters were indivisible in the patient arm, whereas the random arm kept only exact-pixel groups together (Figure~\ref{fig:controls}b). It is therefore not an unchanged-grouping null; rather, the negligible change despite relaxed proxy grouping strengthens the contrast with the patient-identified classes. Patient-fold means spanned 5.86 points, compared with 0.70 points for random folds (Figures~\ref{fig:controls}b and~\ref{fig:heterogeneity}b). A random-effects decomposition estimated patient-partition variation at 2.18 points and seed variation at 0.83 points; for random folds, the partition component reached the zero boundary while seed variation remained 0.87 points. The zero is a truncated method-of-moments estimate, not proof of literal zero variance.
 
 \begin{table}[H]
 \centering
@@ -126,7 +126,7 @@ Patient-disjoint, tumor classes & 4,586 & \textbf{93.68\%} \\
 \begin{subfigure}[t]{0.48\textwidth}
 \centering
 \includegraphics[width=\linewidth]{cv_per_class_f1.png}
-\caption{Per-class F1 across released, deduplicated, and patient-disjoint evaluation.}
+\caption{Per-class F1 across released, deduplicated, and patient-disjoint evaluation. Patient-disjoint annotations are arithmetic means of the three complete seed replicates.}
 \end{subfigure}\hfill
 \begin{subfigure}[t]{0.48\textwidth}
 \centering
