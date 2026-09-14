@@ -50,7 +50,7 @@ Items that do not apply to this retrospective secondary analysis of public data 
 | 35 | Implications for practice | Discussion; explicit statement that the model is not for clinical use |
 | **Other** |||
 | 36 | Registration | N/A - not a clinical trial |
-| 37 | Protocol access | GitHub release v1.2.1 in Data and Code Availability |
+| 37 | Protocol access | GitHub release v1.2.2 in Data and Code Availability |
 | 38 | Funding and role of funders | Funding - none |
 
 ## Material limitations

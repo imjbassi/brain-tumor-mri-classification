@@ -1,6 +1,6 @@
 # Brain Tumor MRI Benchmark Audit
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22754870.svg)](https://doi.org/10.5281/zenodo.22754870)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22755070.svg)](https://doi.org/10.5281/zenodo.22755070)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 An audit of a widely used four-class brain tumor MRI benchmark, plus the
@@ -111,19 +111,19 @@ If you use the recovered patient map, the patient-disjoint split, or the audit
 tooling, please cite the archived release:
 
 > Bassi, J. (2026). *Brain Tumor MRI Benchmark Audit: patient-identifier
-> recovery, leakage analysis, and a patient-disjoint split* (v1.2.1). Zenodo.
-> https://doi.org/10.5281/zenodo.22754870
+> recovery, leakage analysis, and a patient-disjoint split* (v1.2.2). Zenodo.
+> https://doi.org/10.5281/zenodo.22755070
 
 ```bibtex
 @software{bassi2026audit,
   author    = {Bassi, Jaiveer},
   title     = {Brain Tumor MRI Benchmark Audit: patient-identifier recovery,
                leakage analysis, and a patient-disjoint split},
-  version   = {v1.2.1},
+  version   = {v1.2.2},
   year      = {2026},
   publisher = {Zenodo},
-  doi       = {10.5281/zenodo.22754870},
-  url       = {https://doi.org/10.5281/zenodo.22754870}
+  doi       = {10.5281/zenodo.22755070},
+  url       = {https://doi.org/10.5281/zenodo.22755070}
 }
 ```
 
