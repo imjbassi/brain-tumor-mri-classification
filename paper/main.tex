@@ -1,4 +1,4 @@
-\documentclass[twocolumn]{article}
+﻿\documentclass[twocolumn]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \graphicspath{{figures/}}
@@ -14,20 +14,23 @@
 \usepackage{tikz}
 \usepackage[hidelinks]{hyperref}
 \usepackage{subcaption}
+\usepackage[switch,mathlines]{lineno}
 \emergencystretch=1.5em
 \providecommand{\orcidlink}[1]{\href{https://orcid.org/#1}{\smash{\raisebox{-0.2ex}{\tikz[baseline]{\fill[green!60!black] (0,0) circle (0.35em); \node[white,font=\tiny\bfseries] at (0,0) {iD};}}}}}
 \bibpunct{[}{]}{,}{n}{}{,}
 
 \title{\textbf{Complete Patient-Level Leakage Among Traceable Images in a Widely Used Brain Tumor MRI Benchmark}}
-\author{Jaiveer Bassi\,\orcidlink{0009-0006-3633-3220}\thanks{Correspondence to: jaiveerbassi@yahoo.com}\\
+\author{Jaiveer Bassi\,\orcidlink{0009-0006-3633-3220}$^{*}$\\
 Independent Researcher, USA\\
-\texttt{jaiveerbassi@yahoo.com}}
+\texttt{jaiveerbassi@yahoo.com}\\[2pt]
+{\small $^{*}$Corresponding author: Jaiveer Bassi, Independent Researcher, USA (\texttt{jaiveerbassi@yahoo.com})}}
 \date{}
 
 \begin{document}
 \maketitle
+\linenumbers
 \begin{abstract}
-Reported accuracies on a widely used four-class brain tumor MRI benchmark routinely exceed 98\%, but the released split discards patient identity. We content-matched tumor images to their figshare source and recovered identifiers for 4,586 images from 233 patients. Of 906 tumor test images, 761 were traceable; every one belonged to a patient represented in training. Separately, 216 of 1,311 test images were pixel-identical to training images. Removing duplicates did not reduce accuracy (99.22\% to 99.42\%), whereas five-fold patient-disjoint cross-validation yielded 95.19\% overall and 93.68\% on tumor classes. On the same 761 images, accuracy fell from 99.12\% when the patient appeared in training to 93.60\% when absent, increasing the error rate 7.3-fold. A matched random-fold control attributed 2.73 of the 4.03 percentage-point gap to patient grouping rather than the change in evaluation design; the class without patient identifiers changed negligibly despite relaxed proxy grouping. These results show that the released split measures recognition of additional slices from previously seen patients, not generalization to unseen patients. We release the recovered patient map, fixed folds, predictions, and analysis code.
+Reported accuracies on a widely used four-class brain tumor MRI benchmark routinely exceed 98\%, but the released split discards patient identity. We content-matched tumor images to their figshare source and recovered identifiers for 4586 images from 233 patients. Of 906 tumor test images, 761 were traceable; every one belonged to a patient represented in training. Separately, 216 of 1311 test images were pixel-identical to training images. Removing duplicates did not reduce accuracy (99.22\% to 99.42\%), whereas five-fold patient-disjoint cross-validation yielded 95.19\% overall and 93.68\% on tumor classes. On the same 761 images, accuracy fell from 99.12\% when the patient appeared in training to 93.60\% when absent, increasing the error rate 7.3-fold. A matched random-fold control attributed 2.73 of the 4.03 percentage-point gap to patient grouping rather than the change in evaluation design; the class without patient identifiers changed negligibly despite relaxed proxy grouping. These results show that the released split measures recognition of additional slices from previously seen patients, not generalization to unseen patients. We release the recovered patient map, fixed folds, predictions, and analysis code.
 \end{abstract}
 
 \vspace{0.5em}
@@ -36,15 +39,15 @@ Reported accuracies on a widely used four-class brain tumor MRI benchmark routin
 \section{Introduction}
 Deep neural networks are widely evaluated on public medical-image collections because those collections make comparison inexpensive and reproducible. Their apparent precision is meaningful only when the evaluation unit matches the intended use. For two-dimensional slices from a volumetric scan, splitting images independently can place adjacent slices from the same patient in both training and testing. The resulting test set is not independent: it measures recognition of another view of a patient already encountered during training rather than generalization to a new patient. Slice-level leakage has materially inflated performance in brain MRI and other medical-imaging tasks\cite{yagis2021effect,wen2020convolutional}, while broader reviews identify non-independent samples and duplicate images as recurring causes of unreliable machine-learning results\cite{kapoor2023leakage,roberts2021common}.
 
-This study audits a popular four-class brain tumor MRI collection distributed through Mendeley Data and Kaggle\cite{ghaffar2024dataset,nickparvar2021dataset}. The collection contains 7,023 pre-split images labelled glioma, meningioma, pituitary tumor, or no tumor, and has supported many reported accuracies near 99\%. Its tumor images are attributed partly to the figshare collection of Cheng \textit{et al.}\cite{cheng2015enhanced}, which retains patient identifiers, but the aggregated four-class release does not. Consequently, the released folders appear to prevent a patient-level audit.
+This study audits a popular four-class brain tumor MRI collection distributed through Mendeley Data and Kaggle\cite{ghaffar2024dataset,nickparvar2021dataset}. The collection contains 7023 pre-split images labelled glioma, meningioma, pituitary tumor, or no tumor, and has supported many reported accuracies near 99\%. Its tumor images are attributed partly to the figshare collection of Cheng \textit{et al.}\cite{cheng2015enhanced}, which retains patient identifiers, but the aggregated four-class release does not. Consequently, the released folders appear to prevent a patient-level audit.
 
 We recover the discarded identifiers by crop-normalized, orientation-invariant content matching against figshare. This enables three linked tests. First, we quantify exact duplicate and patient overlap in the released split. Second, we compare the same ResNet-18 pipeline under released, deduplicated, and five-fold patient-disjoint evaluation. Third, we run a matched random-fold control over the identical pooled population to separate the effect of patient grouping from the effect of changing the evaluation design. The contribution is therefore not a new classifier. It is a provenance-assisted audit, a corrected evaluation, and reusable metadata that make patient-disjoint testing possible for this benchmark.
 
 \section{Results}
 \subsection{The released split contains the same images and patients on both sides}
-The released folders contain 5,712 training and 1,311 test images. Hashing decoded pixels identified 216 test images (16.5\%) that were pixel-identical to a training image; 103 were also byte-identical. Across both folders, the nominal 7,023 files represented 6,597 distinct pixel contents. Exact duplication was strongly class-dependent: no glioma test image was duplicated, compared with 106 meningioma, 105 no-tumor, and five pituitary test images.
+The released folders contain 5712 training and 1311 test images. Hashing decoded pixels identified 216 test images (16.5\%) that were pixel-identical to a training image; 103 were also byte-identical. Across both folders, the nominal 7023 files represented 6597 distinct pixel contents. Exact duplication was strongly class-dependent: no glioma test image was duplicated, compared with 106 meningioma, 105 no-tumor, and five pituitary test images.
 
-The patient audit was more consequential. Crop-normalized matching across all eight dihedral image orientations recovered a figshare identifier for 4,586 of 5,023 tumor images (91.3\%) and all 233 source patients. Of the 906 tumor images in the released test folder, 761 (84\%) were traceable: 287 glioma, 178 meningioma, and 296 pituitary images. Every traceable test image belonged to a patient represented in the training folder. Overall, 206 of 233 patients (88.4\%) appeared in both folders. The claim is limited to the traced population and is weakest in meningioma, for which coverage was 58\%; it does not assume anything about the remaining 145 tumor test images. Table~\ref{tab:audit} summarizes the audit, and Figure~\ref{fig:leakage} shows exact cross-split duplicates.
+The patient audit was more consequential. Crop-normalized matching across all eight dihedral image orientations recovered a figshare identifier for 4586 of 5023 tumor images (91.3\%) and all 233 source patients. Of the 906 tumor images in the released test folder, 761 (84\%) were traceable: 287 glioma, 178 meningioma, and 296 pituitary images. Every traceable test image belonged to a patient represented in the training folder. Overall, 206 of 233 patients (88.4\%) appeared in both folders. The claim is limited to the traced population and is weakest in meningioma, for which coverage was 58\%; it does not assume anything about the remaining 145 tumor test images. Table~\ref{tab:audit} summarizes the audit, and Figure~\ref{fig:leakage} shows exact cross-split duplicates.
 
 \begin{table}[H]
 \centering
@@ -55,10 +58,10 @@ The patient audit was more consequential. Crop-normalized matching across all ei
 \toprule
 Audit quantity & Result \\
 \midrule
-Released folders & 5,712 train; 1,311 test \\
-Distinct pixel contents & 6,597 \\
-Pixel-identical test images in training & 216/1,311 (16.5\%) \\
-Recovered figshare identifiers & 4,586/5,023 (91.3\%) \\
+Released folders & 5712 train; 1311 test \\
+Distinct pixel contents & 6597 \\
+Pixel-identical test images in training & 216/1311 (16.5\%) \\
+Recovered figshare identifiers & 4586/5023 (91.3\%) \\
 Traceable tumor test images & 761/906 (84.0\%) \\
 \shortstack[l]{Traceable tumor test images\\with patient represented in training} & 761/761 (100\%) \\
 Patients appearing in both folders & 206/233 (88.4\%) \\
@@ -76,11 +79,11 @@ Patients appearing in both folders & 206/233 (88.4\%) \\
 \subsection{Patient-disjoint evaluation lowers accuracy}
 We assigned each recovered patient to exactly one of five folds and trained three aligned random seeds per fold. Unmatched tumor images remained training-only. Because no patient identifiers exist for the no-tumor class, we grouped that class by near-duplicate cluster; the tumor-only result is reported separately as the evaluation with complete patient grouping. Training and validation were also group-disjoint. Every eligible image was tested exactly once per seed, and no fold contained patient or exact-pixel overlap across its training and test boundary.
 
-Pooled patient-disjoint accuracy was 95.19\% across 6,292 images (seed replicates 94.91\%, 95.42\%, and 95.23\%; 95\% patient-clustered bootstrap interval 93.58--96.59\%). On the 4,586 tumor images, accuracy was 93.68\% and macro-F1 was 0.935. Across the three complete seed replicates, meningioma was weakest (mean F1 0.898), followed by glioma (0.943) and pituitary tumor (0.959; Figure~\ref{fig:heterogeneity}a).
+Pooled patient-disjoint accuracy was 95.19\% across 6292 images (seed replicates 94.91\%, 95.42\%, and 95.23\%; 95\% patient-clustered bootstrap interval 93.58--96.59\%). On the 4586 tumor images, accuracy was 93.68\% and macro-F1 was 0.935. Across the three complete seed replicates, meningioma was weakest (mean F1 0.898), followed by glioma (0.943) and pituitary tumor (0.959; Figure~\ref{fig:heterogeneity}a).
 
 The cleanest comparison uses the 761 traceable tumor test images scored under both regimes. Released-split models, which trained on each patient's other slices, achieved 99.12\%; patient-disjoint models achieved 93.60\%. The absolute difference was 5.52 percentage points and the error rate was 7.3 times higher without patient overlap (Figure~\ref{fig:controls}a).
 
-The headline comparison still changes both grouping and evaluation design. We therefore built a five-fold random partition over the same 6,292 images, preserving each patient-fold's class counts, model pipeline, group-disjoint validation, and three seeds. Pixel-identical images were kept together so duplicate leakage could not confound the comparison. Random-fold cross-validation reached 97.92\%, 2.73 points above patient-disjoint cross-validation (95\% patient-clustered bootstrap interval 1.75--3.89; Table~\ref{tab:performance}). On the 4,586 tumor images, the corresponding accuracies were 97.47\% and 93.68\%, a 3.79-point difference (95\% interval 2.42--5.36). Thus, 68\% of the 4.03-point overall gap between released and patient-disjoint evaluation was attributable to the grouping rule and 32\% to the remaining design changes.
+The headline comparison still changes both grouping and evaluation design. We therefore built a five-fold random partition over the same 6292 images, preserving each patient-fold's class counts, model pipeline, group-disjoint validation, and three seeds. Pixel-identical images were kept together so duplicate leakage could not confound the comparison. Random-fold cross-validation reached 97.92\%, 2.73 points above patient-disjoint cross-validation (95\% patient-clustered bootstrap interval 1.75--3.89; Table~\ref{tab:performance}). On the 4586 tumor images, the corresponding accuracies were 97.47\% and 93.68\%, a 3.79-point difference (95\% interval 2.42--5.36). Thus, 68\% of the 4.03-point overall gap between released and patient-disjoint evaluation was attributable to the grouping rule and 32\% to the remaining design changes.
 
 The per-class pattern supplies a control specific to patient identity. Random grouping improved all three classes with recovered patient identifiers, most strongly meningioma (+7.33 points). No-tumor accuracy changed by only -0.12 points even though its grouping was also relaxed: near-duplicate clusters were indivisible in the patient arm, whereas the random arm kept only exact-pixel groups together (Figure~\ref{fig:controls}b). It is therefore not an unchanged-grouping null; rather, the negligible change despite relaxed proxy grouping strengthens the contrast with the patient-identified classes. Patient-fold means spanned 5.86 points, compared with 0.70 points for random folds (Figures~\ref{fig:heterogeneity}b and~\ref{fig:controls}b). A random-effects decomposition estimated patient-partition variation at 2.18 points and seed variation at 0.83 points; for random folds, the partition component reached the zero boundary while seed variation remained 0.87 points. The zero is a truncated method-of-moments estimate, not proof of literal zero variance.
 
@@ -93,14 +96,14 @@ The per-class pattern supplies a control specific to patient identity. Random gr
 \toprule
 Evaluation & Test $n$ & Accuracy or difference \\
 \midrule
-Released holdout & 1,311 & 99.22\% $\pm$ 0.16 \\
-Deduplicated holdout & 1,092 & 99.42\% $\pm$ 0.30 \\
-Random-fold cross-validation & 6,292 & 97.92\% \\
-Patient-disjoint cross-validation & 6,292 & \textbf{95.19\%} \\
-\quad Random $-$ patient & 6,292 & 2.73 pt (1.75--3.89) \\
-Random-fold, tumor classes & 4,586 & 97.47\% \\
-Patient-disjoint, tumor classes & 4,586 & \textbf{93.68\%} \\
-\quad Random $-$ patient, tumor & 4,586 & 3.79 pt (2.42--5.36) \\
+Released holdout & 1311 & 99.22\% $\pm$ 0.16 \\
+Deduplicated holdout & 1092 & 99.42\% $\pm$ 0.30 \\
+Random-fold cross-validation & 6292 & 97.92\% \\
+Patient-disjoint cross-validation & 6292 & \textbf{95.19\%} \\
+\quad Random $-$ patient & 6292 & 2.73 pt (1.75--3.89) \\
+Random-fold, tumor classes & 4586 & 97.47\% \\
+Patient-disjoint, tumor classes & 4586 & \textbf{93.68\%} \\
+\quad Random $-$ patient, tumor & 4586 & 3.79 pt (2.42--5.36) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -151,7 +154,7 @@ Duplicated test images were not easier for the released-split models: their pool
 \toprule
  & Released & Deduplicated \\
 \midrule
-Test images & 1,311 & 1,092 \\
+Test images & 1311 & 1092 \\
 Mean accuracy & 99.22\% & 99.42\% \\
 Standard deviation & 0.16 pt & 0.30 pt \\
 Range & 98.93--99.47 & 98.81--99.73 \\
@@ -210,11 +213,11 @@ Partition variation also limits comparisons between models. Patient-fold means s
 
 Several further limitations remain. The provenance audit verified the figshare component but not the reported SARTAJ or Br35H components. The content-matching threshold was calibrated on realistically transformed positive controls, yet 8.7\% of tumor images remained unmatched. The classifier ignores three-dimensional context, which may contribute to glioma--meningioma confusion. Calibration and Grad-CAM analyses use one fold and a small number of qualitative examples, respectively. A stronger next study would combine external, institution-disjoint validation; preserved subject and acquisition metadata; volumetric models; systematic shortcut tests with background masking; and uncertainty estimates assessed across all patient folds.
 
-For medical AI, overstated benchmark accuracy can shape research priorities and perceived readiness. On the patient-disjoint tumor evaluation, the model rarely called a tumor healthy (7 of 4,586 images) but assigned the wrong tumor type to 6.2\%, with glioma recall 0.944. These are slice-level counts, not patient-level clinical endpoints. The model should not be used for diagnosis or treatment decisions, and the released artifacts are intended for benchmark auditing and reproducible research only.
+For medical AI, overstated benchmark accuracy can shape research priorities and perceived readiness. On the patient-disjoint tumor evaluation, the model rarely called a tumor healthy (7 of 4586 images) but assigned the wrong tumor type to 6.2\%, with glioma recall 0.944. These are slice-level counts, not patient-level clinical endpoints. The model should not be used for diagnosis or treatment decisions, and the released artifacts are intended for benchmark auditing and reproducible research only.
 
 \section{Methods}
 \subsection{Dataset and provenance recovery}
-We used the 7,023-image four-class collection from Mendeley Data\cite{ghaffar2024dataset}, also mirrored on Kaggle\cite{nickparvar2021dataset}; its released-folder composition appears in Supplementary Table S1. Images were used under their published folder labels. To recover subject identity, we downloaded the 3,064-slice figshare source\cite{cheng2015enhanced}, rendered each slice according to its accompanying conversion description, isolated the non-background brain bounding box, and resized both source and target images to a common square. We compared ImageNet-pretrained ResNet-18 embeddings across rotations and reflections. A transformed-positive control that applied cropping, resizing, and JPEG re-encoding to known matches produced a median cosine similarity of 0.9988 and minimum of 0.9884; we accepted matches at cosine $\geq0.98$. The complete mapping, scores, orientations, and three label disagreements are released in \texttt{figshare\_patient\_map.json}. Supplementary Methods and Supplementary Table S2 provide additional sensitivity details.
+We used the 7023-image four-class collection from Mendeley Data\cite{ghaffar2024dataset}, also mirrored on Kaggle\cite{nickparvar2021dataset}; its released-folder composition appears in Supplementary Table S1. Images were used under their published folder labels. To recover subject identity, we downloaded the 3064-slice figshare source\cite{cheng2015enhanced}, rendered each slice according to its accompanying conversion description, isolated the non-background brain bounding box, and resized both source and target images to a common square. We compared ImageNet-pretrained ResNet-18 embeddings across rotations and reflections. A transformed-positive control that applied cropping, resizing, and JPEG re-encoding to known matches produced a median cosine similarity of 0.9988 and minimum of 0.9884; we accepted matches at cosine $\geq0.98$. The complete mapping, scores, orientations, and three label disagreements are released in \texttt{figshare\_patient\_map.json}. Supplementary Methods and Supplementary Table S2 provide additional sensitivity details.
 
 \subsection{Duplicate and redundancy audit}
 We computed SHA hashes over raw bytes and over decoded pixels resized to a fixed resolution. Cross-folder pixel hashes identified re-encoded copies that were not byte-identical. For a secondary redundancy analysis, we greedily grouped images with embedding cosine similarity $\geq0.99$ while preventing two cluster representatives from merging. Exact-duplicate and redundancy counts by class appear in Supplementary Table S3. Exact-duplicate counts support the primary contamination claim; near-duplicate clusters were used only as a conservative grouping proxy for the no-tumor class.
@@ -223,14 +226,20 @@ We computed SHA hashes over raw bytes and over decoded pixels resized to a fixed
 All experiments used ImageNet-pretrained ResNet-18\cite{he2016deep} with its final layer replaced by a four-class linear head. Grayscale images were replicated across three channels, resized to $224\times224$, and normalized by ImageNet means and standard deviations. Training augmentation applied horizontal flips, rotations up to 10 degrees, and brightness and contrast jitter up to 10\%. We optimized cross-entropy with Adam at learning rate $10^{-4}$, batch size 32, no weight decay, and a maximum of 30 epochs. A plateau scheduler halved the learning rate after two stagnant validation epochs; early stopping used five epochs without validation-loss improvement. Patient-fold runs used group-disjoint validation by recovered patient or no-tumor cluster. Software versions and all hyperparameters appear in the repository and Supplementary Table S4.
 
 \subsection{Evaluation designs}
-The released condition trained on the 5,712-image training folder and tested on all 1,311 released test images. The deduplicated condition removed test images duplicated in training and collapsed within-folder exact-duplicate groups. The patient-disjoint condition assigned each of 233 recovered patients to exactly one of five test folds using class-stratified longest-processing-time allocation, balancing folds to within two slices per class. Two patients spanning labels were assigned by dominant label. Unmatched tumor images were training-only. No-tumor images were deduplicated and grouped by near-duplicate cluster. We ran seeds 0, 1, and 42 in every fold.
+The released condition trained on the 5712-image training folder and tested on all 1311 released test images. The deduplicated condition removed test images duplicated in training and collapsed within-folder exact-duplicate groups. The patient-disjoint condition assigned each of 233 recovered patients to exactly one of five test folds using class-stratified longest-processing-time allocation, balancing folds to within two slices per class. Two patients spanning labels were assigned by dominant label. Unmatched tumor images were training-only. No-tumor images were deduplicated and grouped by near-duplicate cluster. We ran seeds 0, 1, and 42 in every fold.
 
-For the matched random control, we partitioned the same 6,292 eligible images into five test folds with per-class sizes identical to the patient folds but ignored patient identity. Exact-pixel groups remained intact. One cached partition (\texttt{rand\_folds.json}) was used for all three seeds, and each image appeared in one test fold in both arms. The comparison therefore changes the assignment rule without changing the pooled evaluation population.
+For the matched random control, we partitioned the same 6292 eligible images into five test folds with per-class sizes identical to the patient folds but ignored patient identity. Exact-pixel groups remained intact. One cached partition (\texttt{rand\_folds.json}) was used for all three seeds, and each image appeared in one test fold in both arms. The comparison therefore changes the assignment rule without changing the pooled evaluation population.
 
 \subsection{Statistical analysis}
-Accuracy and macro-F1 were pooled over each complete five-fold replicate. Patient-level bootstrap intervals resampled the 233 recovered patients with replacement; no-tumor clusters were resampled as grouping units when included. The matched random-versus-patient difference was computed per image and bootstrapped by patient or cluster. Variance components used a one-way random-effects method-of-moments decomposition of the $5\times3$ fold-by-seed accuracy table; negative partition estimates were truncated at zero and described as boundary estimates. Released-versus-deduplicated seed means were compared with Welch's $t$-test and an interval for the mean difference. Duplicate-error analyses treated either model or image as the resampling unit, not each correlated prediction as independent.
+All tests were two-tailed and used a significance level of $\alpha=0.05$; exact $p$ values are reported throughout. Accuracy and macro-F1 were pooled over each complete five-fold replicate. Patient-level bootstrap intervals resampled the 233 recovered patients with replacement; no-tumor clusters were resampled as grouping units when included. The matched random-versus-patient difference was computed per image and bootstrapped by patient or cluster. Variance components used a one-way random-effects method-of-moments decomposition of the $5\times3$ fold-by-seed accuracy table; negative partition estimates were truncated at zero and described as boundary estimates. Released-versus-deduplicated seed means were compared with Welch's $t$-test on the ten per-seed accuracies of each condition, with an interval for the mean difference. Welch's test was chosen because the two conditions are independent samples with unequal variances (0.16 and 0.30 percentage points) and unequal effective sample sizes; because each group contains only ten seeds, we verified that the per-seed accuracies were consistent with normality using the Shapiro--Wilk test ($p=0.91$ released, $p=0.23$ deduplicated) and confirmed the conclusion with a distribution-free two-tailed Mann--Whitney $U$ test ($U=26$, $p=0.075$). Duplicate-error analyses treated either model or image as the resampling unit, not each correlated prediction as independent; the image-level comparison used a two-tailed permutation test, which makes no distributional assumption. Bootstrap intervals are two-sided percentile intervals from 10,000 resamples and are not adjusted for multiplicity; the pre-specified primary comparison is the matched random-versus-patient difference, and the remaining tests are reported as exact $p$ values for description rather than as a family of confirmatory decisions.
 
 Calibration used expected calibration error, negative log-likelihood, and temperature scaling fitted to validation logits following Guo \textit{et al.}\cite{guo2017calibration}. Grad-CAM targeted ResNet-18 layer 4\cite{selvaraju2017grad}. All primary quantities are regenerated from per-image prediction files by the released analysis scripts.
+
+\subsection{Ethics declarations}
+This work is a secondary analysis of publicly available, de-identified imaging data and did not require institutional review board approval; no experiments on humans, human samples, or animals were performed. The recovered ``patient identifiers'' are arbitrary within-dataset labels distributed with the source collection and do not identify individuals. No personally identifiable information appears in any text, figure, table, or Supplementary Information file.
+
+\subsection{Use of AI assistance}
+An AI coding assistant (Anthropic Claude) was used to revise analysis code, execute experiments, draft and edit text, and review intermediate results. OpenAI Codex was subsequently used for structural and language editing to prepare the manuscript for submission. Large language models are not authors of this work. The author executed or inspected the analyses, checked the cited literature, verified the final manuscript and artifacts, and takes full responsibility for their accuracy and integrity.
 
 \section*{Data Availability}
 The source images are third-party and are not redistributed. The aggregated four-class collection is available from Mendeley Data\cite{ghaffar2024dataset} and Kaggle\cite{nickparvar2021dataset}; the figshare source used for provenance recovery is available under CC BY 4.0\cite{cheng2015enhanced}. Derived patient identifiers, fold assignments, file manifests, per-run metrics, and per-image predictions are publicly available in the versioned GitHub release v1.2.2 at \url{https://github.com/imjbassi/Brain-Tumor-MRI-Classification/releases/tag/v1.2.2} and the corresponding Zenodo archive at \url{https://doi.org/10.5281/zenodo.22755070}.
@@ -240,12 +249,6 @@ All code required to rebuild the split, train the models, reproduce the statisti
 
 \section*{Relation to a Previous Preprint}
 An earlier preprint by the same author, \textit{Brain Tumor Classification with Pretrained CNNs in PyTorch} (DOI: \texttt{10.13140/RG.2.2.21638.28484}), predates this dataset audit and reported 99.16\% on the released split. It contains none of the provenance recovery, leakage analysis, or patient-disjoint evaluation reported here and is superseded by this manuscript.
-
-\section*{Ethics Statement}
-This work is a secondary analysis of publicly available, de-identified imaging data and did not require institutional review board approval. The recovered ``patient identifiers'' are arbitrary within-dataset labels distributed with the source collection and do not identify individuals.
-
-\section*{Use of AI Assistance}
-An AI coding assistant (Anthropic Claude) was used to revise analysis code, execute experiments, draft and edit text, and review intermediate results. OpenAI Codex was subsequently used for structural and language editing to prepare the manuscript for submission. The author executed or inspected the analyses, checked the cited literature, verified the final manuscript and artifacts, and takes full responsibility for their accuracy and integrity.
 
 \section*{Author Contributions}
 J.B. conceived the study, developed the software, performed the experiments and analyses, verified the results, prepared the figures, and wrote and revised the manuscript.
