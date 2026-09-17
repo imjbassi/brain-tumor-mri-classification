@@ -13,17 +13,45 @@ Usage:
 """
 import argparse
 import csv
+import hashlib
 import json
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
 from scipy import stats
 
 DUP_REASON = "pixel-identical to a training image"
 
 
-def duplicated_test_images(manifest_path):
-    """Return the set of released test images that duplicate a training image."""
+def pixel_md5(path, size=(128, 128)):
+    """Hash of the decoded grayscale pixels, matching src/audit_leakage.py."""
+    img = Image.open(path).convert("L").resize(size, Image.BILINEAR)
+    return hashlib.md5(np.asarray(img).tobytes()).hexdigest()
+
+
+def duplicated_by_hash(data_dir):
+    """Released test images whose decoded pixels match some training image.
+
+    This is the definition used for the 216 exact pixel duplicates reported in
+    the audit, and it is not recoverable from the dedup manifest alone: images
+    removed for another reason first (for example, duplicates within the test
+    folder) carry that other reason there.
+    """
+    data_dir = Path(data_dir)
+    train_hashes = {
+        pixel_md5(p) for p in sorted((data_dir / "Training").rglob("*"))
+        if p.is_file()
+    }
+    dup = set()
+    for p in sorted((data_dir / "Testing").rglob("*")):
+        if p.is_file() and pixel_md5(p) in train_hashes:
+            dup.add("data/Testing/" + p.parent.name + "/" + p.name)
+    return dup
+
+
+def duplicated_from_manifest(manifest_path):
+    """Test images the dedup manifest labels as pixel-identical to training."""
     manifest = json.loads(Path(manifest_path).read_text())
     return {p for p, reason in manifest["removed"].items() if reason == DUP_REASON}
 
@@ -57,12 +85,21 @@ def permutation_test(is_dup, errors, n_perm, seed=0):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", default="runs/leaky")
-    parser.add_argument("--manifest", default="dedup_manifest.json")
+    parser.add_argument("--data_dir", default="data",
+                        help="released folders; duplicates are recomputed by pixel hash")
+    parser.add_argument("--manifest", default="dedup_manifest.json",
+                        help="fallback when the images are not available locally")
     parser.add_argument("--n_perm", type=int, default=10000)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    dup = duplicated_test_images(args.manifest)
+    if Path(args.data_dir).is_dir():
+        dup = duplicated_by_hash(args.data_dir)
+        source = f"pixel hashes under {args.data_dir}"
+    else:
+        dup = duplicated_from_manifest(args.manifest)
+        source = f"{args.manifest} (images unavailable; undercounts)"
+    print(f"duplicate definition: {source}")
     by_seed = load_seed_predictions(args.runs)
     paths = sorted(next(iter(by_seed.values())))
     is_dup = np.array([p in dup for p in paths])
