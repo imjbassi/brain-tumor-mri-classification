@@ -82,7 +82,7 @@ The cleanest comparison uses the 761 traceable tumor test images scored under bo
 
 The headline comparison still changes both grouping and evaluation design. We therefore built a five-fold random partition over the same 6,292 images, preserving each patient-fold's class counts, model pipeline, group-disjoint validation, and three seeds. Pixel-identical images were kept together so duplicate leakage could not confound the comparison. Random-fold cross-validation reached 97.92\%, 2.73 points above patient-disjoint cross-validation (95\% patient-clustered bootstrap interval 1.75--3.89; Table~\ref{tab:performance}). On the 4,586 tumor images, the corresponding accuracies were 97.47\% and 93.68\%, a 3.79-point difference (95\% interval 2.42--5.36). Thus, 68\% of the 4.03-point overall gap between released and patient-disjoint evaluation was attributable to the grouping rule and 32\% to the remaining design changes.
 
-The per-class pattern supplies a control specific to patient identity. Random grouping improved all three classes with recovered patient identifiers, most strongly meningioma (+7.33 points). No-tumor accuracy changed by only -0.12 points even though its grouping was also relaxed: near-duplicate clusters were indivisible in the patient arm, whereas the random arm kept only exact-pixel groups together (Figure~\ref{fig:controls}b). It is therefore not an unchanged-grouping null; rather, the negligible change despite relaxed proxy grouping strengthens the contrast with the patient-identified classes. Patient-fold means spanned 5.86 points, compared with 0.70 points for random folds (Figures~\ref{fig:controls}b and~\ref{fig:heterogeneity}b). A random-effects decomposition estimated patient-partition variation at 2.18 points and seed variation at 0.83 points; for random folds, the partition component reached the zero boundary while seed variation remained 0.87 points. The zero is a truncated method-of-moments estimate, not proof of literal zero variance.
+The per-class pattern supplies a control specific to patient identity. Random grouping improved all three classes with recovered patient identifiers, most strongly meningioma (+7.33 points). No-tumor accuracy changed by only -0.12 points even though its grouping was also relaxed: near-duplicate clusters were indivisible in the patient arm, whereas the random arm kept only exact-pixel groups together (Figure~\ref{fig:controls}b). It is therefore not an unchanged-grouping null; rather, the negligible change despite relaxed proxy grouping strengthens the contrast with the patient-identified classes. Patient-fold means spanned 5.86 points, compared with 0.70 points for random folds (Figures~\ref{fig:heterogeneity}b and~\ref{fig:controls}b). A random-effects decomposition estimated patient-partition variation at 2.18 points and seed variation at 0.83 points; for random folds, the partition component reached the zero boundary while seed variation remained 0.87 points. The zero is a truncated method-of-moments estimate, not proof of literal zero variance.
 
 \begin{table}[H]
 \centering
@@ -107,22 +107,6 @@ Patient-disjoint, tumor classes & 4,586 & \textbf{93.68\%} \\
 
 \begin{figure*}[t]
 \centering
-\begin{subfigure}[t]{0.36\textwidth}
-\centering
-\includegraphics[width=\linewidth]{cv_paired.png}
-\caption{The same 761 images scored with their patients seen or unseen during training.}
-\end{subfigure}\hfill
-\begin{subfigure}[t]{0.60\textwidth}
-\centering
-\includegraphics[width=\linewidth]{rand_control.png}
-\caption{Matched random-fold and patient-fold results.}
-\end{subfigure}
-\caption{Controls isolating patient overlap and patient grouping.}
-\label{fig:controls}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
 \begin{subfigure}[t]{0.48\textwidth}
 \centering
 \includegraphics[width=\linewidth]{cv_per_class_f1.png}
@@ -135,6 +119,22 @@ Patient-disjoint, tumor classes & 4,586 & \textbf{93.68\%} \\
 \end{subfigure}
 \caption{Performance heterogeneity becomes visible only after patient grouping.}
 \label{fig:heterogeneity}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[t]{0.36\textwidth}
+\centering
+\includegraphics[width=\linewidth]{cv_paired.png}
+\caption{The same 761 images scored with their patients seen or unseen during training.}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.60\textwidth}
+\centering
+\includegraphics[width=\linewidth]{rand_control.png}
+\caption{Matched random-fold and patient-fold results.}
+\end{subfigure}
+\caption{Controls isolating patient overlap and patient grouping.}
+\label{fig:controls}
 \end{figure*}
 
 \subsection{Removing exact duplicates does not repair the split}
