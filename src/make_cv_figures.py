@@ -1,4 +1,4 @@
-# make_cv_figures.py
+﻿# make_cv_figures.py
 """Figures for the patient-disjoint evaluation.
 
 The released-split baseline had five figures and the paper's main result had
@@ -23,6 +23,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 FIG = "paper/figures"
+# Scientific Reports asks for 300 DPI bitmaps at revision, and prefers vector
+# formats for line art; every figure is written as both.
+DPI = 300
 BLUE, ORANGE, RED, GREY = "#3b6ea5", "#e08214", "#b2182b", "#888888"
 
 
@@ -61,7 +64,8 @@ def fig_per_class(cv):
     ax.legend(loc="lower left", fontsize=9)
     fig.tight_layout()
     out = os.path.join(FIG, "cv_per_class_f1.png")
-    fig.savefig(out, dpi=200)
+    fig.savefig(out, dpi=DPI)
+    fig.savefig(out.replace(".png", ".pdf"))
     plt.close(fig)
     print(f"wrote {out}")
 
@@ -108,7 +112,8 @@ def fig_fold_spread(cv):
     ax.set_ylim(91.5, 100.2)
     fig.tight_layout()
     out = os.path.join(FIG, "cv_fold_spread.png")
-    fig.savefig(out, dpi=200)
+    fig.savefig(out, dpi=DPI)
+    fig.savefig(out.replace(".png", ".pdf"))
     plt.close(fig)
     print(f"wrote {out}")
 
@@ -147,7 +152,8 @@ def fig_paired(cv):
 
     fig.tight_layout()
     out = os.path.join(FIG, "cv_paired.png")
-    fig.savefig(out, dpi=200)
+    fig.savefig(out, dpi=DPI)
+    fig.savefig(out.replace(".png", ".pdf"))
     plt.close(fig)
     print(f"wrote {out}")
 
@@ -217,7 +223,8 @@ def fig_rand_control():
 
     fig.tight_layout()
     out = os.path.join(FIG, "rand_control.png")
-    fig.savefig(out, dpi=200)
+    fig.savefig(out, dpi=DPI)
+    fig.savefig(out.replace(".png", ".pdf"))
     plt.close(fig)
     print(f"wrote {out}")
 
