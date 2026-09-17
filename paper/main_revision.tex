@@ -1,11 +1,11 @@
-﻿\documentclass[twocolumn]{article}
+﻿\documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \graphicspath{{figures/}}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage{times}
 \usepackage{url}
-\usepackage[margin=0.75in]{geometry}
+\usepackage[margin=1in]{geometry}
 \usepackage{caption}
 \usepackage{float}
 \usepackage{booktabs}
@@ -14,8 +14,15 @@
 \usepackage{tikz}
 \usepackage[hidelinks]{hyperref}
 \usepackage{subcaption}
-\usepackage[switch,mathlines]{lineno}
+\usepackage[mathlines]{lineno}
 \emergencystretch=1.5em
+\usepackage{ragged2e}
+\RaggedRight
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
 \providecommand{\orcidlink}[1]{\href{https://orcid.org/#1}{\smash{\raisebox{-0.2ex}{\tikz[baseline]{\fill[green!60!black] (0,0) circle (0.35em); \node[white,font=\tiny\bfseries] at (0,0) {iD};}}}}}
 \bibpunct{[}{]}{,}{n}{}{,}
 
@@ -112,37 +119,37 @@ Patient-disjoint, tumor classes & 4586 & \textbf{93.68\%} \\
 \end{tabular}
 \end{table}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
 \begin{subfigure}[t]{0.48\textwidth}
 \centering
-\includegraphics[width=\linewidth]{cv_per_class_f1.png}
+\includegraphics[width=0.85\linewidth]{cv_per_class_f1.png}
 \caption{Per-class F1 across released, deduplicated, and patient-disjoint evaluation. Patient-disjoint annotations are arithmetic means of the three complete seed replicates.}
 \end{subfigure}\hfill
 \begin{subfigure}[t]{0.48\textwidth}
 \centering
-\includegraphics[width=\linewidth]{cv_fold_spread.png}
+\includegraphics[width=0.85\linewidth]{cv_fold_spread.png}
 \caption{Seed and fold variation under patient-disjoint evaluation.}
 \end{subfigure}
 \caption{Performance heterogeneity becomes visible only after patient grouping.}
 \label{fig:heterogeneity}
-\end{figure*}
+\end{figure}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
 \begin{subfigure}[t]{0.36\textwidth}
 \centering
-\includegraphics[width=\linewidth]{cv_paired.png}
+\includegraphics[width=0.85\linewidth]{cv_paired.png}
 \caption{The same 761 images scored with their patients seen or unseen during training.}
 \end{subfigure}\hfill
 \begin{subfigure}[t]{0.60\textwidth}
 \centering
-\includegraphics[width=\linewidth]{rand_control.png}
+\includegraphics[width=0.85\linewidth]{rand_control.png}
 \caption{Matched random-fold and patient-fold results.}
 \end{subfigure}
 \caption{Controls isolating patient overlap and patient grouping.}
 \label{fig:controls}
-\end{figure*}
+\end{figure}
 
 \subsection{Removing exact duplicates does not repair the split}
 We removed every test image that was pixel-identical to training data and collapsed duplicate groups within each folder. Across ten seeds, accuracy changed from 99.22\% to 99.42\%, an increase of 0.20 points rather than the decrease predicted by a duplicate-memorization account. The 95\% confidence interval for the difference was -0.03 to +0.43 points, and a Welch test gave $p=0.081$ (Table~\ref{tab:dedup}). Simply rescoring the original seed-42 model on the reduced test set produced the same pattern. More importantly, deduplication left all 756 remaining traceable test images and all 206 shared patients represented in training. It therefore removed repeated files without restoring independence.
@@ -192,14 +199,14 @@ Errors $>0.90$ & 4 & 1 & 11 & 2 \\
 \centering
 \begin{subfigure}[t]{0.98\linewidth}
 \centering
-\includegraphics[width=\linewidth]{gradcam_examples.png}
+\includegraphics[width=0.85\linewidth]{gradcam_examples.png}
 \caption{Released-split model.}
 \end{subfigure}
 
 \medskip
 \begin{subfigure}[t]{0.98\linewidth}
 \centering
-\includegraphics[width=\linewidth]{gradcam_patient_disjoint.png}
+\includegraphics[width=0.85\linewidth]{gradcam_patient_disjoint.png}
 \caption{Patient-disjoint model.}
 \end{subfigure}
 \caption{Grad-CAM illustrations for one image per class. These qualitative examples are not localization evidence.}
